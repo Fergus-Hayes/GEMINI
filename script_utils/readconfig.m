@@ -8,26 +8,26 @@ function [ymd,UTsec,tdur,dtout,flagoutput,mloc] = readconfig(filename)
 
   %DATE
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
+  datatrim =strtok(data,' ');
   [day,remainder]=strtok(datatrim,',');
   [month,remainder]=strtok(remainder,',');
-  [year,remainder]=strtok(remainder,',');    %should not find delimiter..
-  ymd=[str2num(year),str2num(month),str2num(day)];
+  year =strtok(remainder,',');    %should not find delimiter..
+  ymd=[str2double(year),str2double(month),str2double(day)];
 
   %UT seconds
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
-  UTsec=str2num(datatrim);
+  [datatrim,~]=strtok(data,' ');
+  UTsec=str2double(datatrim);
 
   %Sim duration
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
-  tdur=str2num(datatrim);  
+  datatrim =strtok(data,' ');
+  tdur=str2double(datatrim);  
  
   %Output dt
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
-  dtout=str2num(datatrim);
+  datatrim = strtok(data,' ');
+  dtout=str2double(datatrim);
 
   %Strip out the junk
 %  data=fgetl(fid);
@@ -37,21 +37,21 @@ function [ymd,UTsec,tdur,dtout,flagoutput,mloc] = readconfig(filename)
 
   %CFL number
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
+  datatrim =strtok(data,' ');
   tcfl=str2num(datatrim); 
 
   %Exospheric temp.
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
-  Teinf=str2num(datatrim);
+  datatrim =strtok(data,' ');
+  Teinf=str2double(datatrim);
 
   %Strip out the junk
 %  data=fgetl(fid);
 
   %Type of potential solution
   data=fgetl(fid);
-  [datatrim,remainder]=strtok(data,' ');
-  flagpot=str2num(datatrim);
+  datatrim =strtok(data,' ');
+  flagpot=str2double(datatrim);
 
   %Grid periodic flag
   data=fgetl(fid);

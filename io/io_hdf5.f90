@@ -684,35 +684,15 @@ contains
       print *, '!!!NOTE:  Permuting arrays prior to output...'
       select case (flagoutput)
         case (2)    !averaged parameters
-          allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
-          permarray=reshape(neall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('neall', permarray)
-          
-          permarray=reshape(v1avgall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('v1avgall', permarray)
-          
-          permarray=reshape(Tavgall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('Tavgall', permarray)
-          
-          permarray=reshape(Teall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('TEall', permarray)
-          
-          permarray=reshape(J1all,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('J1all', permarray)
-          
-          permarray=reshape(J3all,[lx1,lx3all,lx2],order=[1,3,2])    !Note that components need to be swapped too
-          call h5f%add('J3all', permarray)
-          
-          permarray=reshape(J2all,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('J2all', permarray)
-          
-          permarray=reshape(v3avgall,[lx1,lx3all,lx2],order=[1,3,2])    !Note swapping of components
-          call h5f%add('v3avgall', permarray)
-          
-          permarray=reshape(v2avgall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('v2avgall', permarray)
-          
-          deallocate(permarray) 
+          call h5f%add('neall', neall)
+          call h5f%add('v1avgall', v1avgall)
+          call h5f%add('Tavgall', Tavgall)
+          call h5f%add('TEall', Teall)
+          call h5f%add('J1all', J1all)
+          call h5f%add('J3all', J3all)
+          call h5f%add('J2all', J2all)
+          call h5f%add('v3avgall', v3avgall)
+          call h5f%add('v2avgall', v2avgall)
         case (3)     !electron density only output
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
@@ -761,7 +741,7 @@ contains
       call h5f%add('Phiall', Phiall(lx1,:,:))
     end if
 
-    close(u)
+    !close(u)
     call h5f%finalize()
 
   

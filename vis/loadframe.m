@@ -61,13 +61,23 @@ filestr=datelab(ymd,UTsec);
 if ymd(1)==ymd0(1) && ymd(2)==ymd0(2) && ymd(3)==ymd0(3) && UTsec==UTsec0    %tack on the decimal part
   filestr(end)='1';
 end
-filename=[filestr,'.dat'];
+ext = '.dat';
+filename=[filestr,ext];
+
+if ~exist([direc,filesep,filename], 'file')
+  ext = '.h5';
+  filename = [filename(1:end-4), ext];
+end
 
 switch flagoutput
   case 1
     [ne,v1,Ti,Te,J1,v2,v3,J2,J3,ns,vs1,Ts,Phitop] = loadframe3Dcurv(direc,filename);
   case 2
-    [ne,v1,Ti,Te,J1,v2,v3,J2,J3,Phitop] = loadframe3Dcurvavg(direc,filename);
+    if strcmp(ext, '.dat')
+      [ne,v1,Ti,Te,J1,v2,v3,J2,J3,Phitop] = loadframe3Dcurvavg(direc,filename);
+    else
+      [ne,v1,Ti,Te,J1,v2,v3,J2,J3,Phitop] = loadframe_HDF5_3Dcurvavg(direc,filename);
+    end
     ns=[]; vs1=[]; Ts=[];
   otherwise
     ne=loadframe3Dcurvne(direc,filename);

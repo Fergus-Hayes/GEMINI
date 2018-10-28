@@ -3,7 +3,6 @@ function ok = compare_all(dir1, dir2)
   % the absolute and relative tolerance account for slight IEEE-754 based differences,
   % including non-associativity of floating-point arithmetic.
   % these parameters are a bit arbitrary.
-
 % per MZ Oct 17, 2018:
 % Ti,Te=1 K
 % ne=1e6 m-3
