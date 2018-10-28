@@ -651,37 +651,41 @@ contains
                  int(8,8)*int(lx2,8)*int(lx3all,8)
     print *, 'Output bit length:  ',recordlength,lx1,lx2,lx3all,lsp
 
-
-    ! Each HDF5 variable will be written right after the old-fashioned write(u,*) for clarity.
-    ! Once HDF5 is proven, we delete the write(u,*) statements.    
+    
     call h5f%initialize(h5filenamefull,status='new',action='w',comp_lvl=1)
-
-    !> WRITE THE DATA
-    !open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    
-    !OK for > 2GB output files
     
     call h5f%add('/time/ymd', ymd)
     call h5f%add('/time/UThour',UTsec/3600._wp)
     
     if (flagswap/=1) then
-      error stop 'this case not yet converted to HDF5'
       select case (flagoutput)
         case (2)    !output ISR-like average parameters
-          write(u) neall(1:lx1,1:lx2,1:lx3all),v1avgall(1:lx1,1:lx2,1:lx3all), &    !output of ISR-like parameters (ne,Ti,Te,v1,etc.)
-                      Tavgall(1:lx1,1:lx2,1:lx3all),Teall(1:lx1,1:lx2,1:lx3all),J1all(1:lx1,1:lx2,1:lx3all), &
-                      J2all(1:lx1,1:lx2,1:lx3all), &
-                      J3all(1:lx1,1:lx2,1:lx3all),v2avgall(1:lx1,1:lx2,1:lx3all),v3avgall(1:lx1,1:lx2,1:lx3all)
+          call h5f%add('neall', neall(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('v1avgall', v1avgall(1:lx1,1:lx2,1:lx3all))   
+          !output of ISR-like parameters (ne,Ti,Te,v1,etc.)
+          call h5f%add('Tavgall', Tavgall(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('TEall', Teall(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('J1all', J1all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('J2all', J2all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('J3all',  J3all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('v2avgall', v2avgall(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('v3avgall', v3avgall(1:lx1,1:lx2,1:lx3all))
         case (3)     !just electron density
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
-          write(u) neall(1:lx1,1:lx2,1:lx3all)
+          call h5f%add('neall', neall(1:lx1,1:lx2,1:lx3all))
         case default    !output everything
           print *, '!!!NOTE:  Input file has selected full output, large files may result!'
-          write(u) nsall(1:lx1,1:lx2,1:lx3all,:),vs1all(1:lx1,1:lx2,1:lx3all,:), &    !this is full output of all parameters in 3D
-                      Tsall(1:lx1,1:lx2,1:lx3all,:),J1all(1:lx1,1:lx2,1:lx3all),J2all(1:lx1,1:lx2,1:lx3all), &
-                      J3all(1:lx1,1:lx2,1:lx3all),v2avgall(1:lx1,1:lx2,1:lx3all),v3avgall(1:lx1,1:lx2,1:lx3all)
+          call h5f%add('nsall', nsall(1:lx1,1:lx2,1:lx3all,:))
+          call h5f%add('vs1all', vs1all(1:lx1,1:lx2,1:lx3all,:))
+          call h5f%add('Tsall', Tsall(1:lx1,1:lx2,1:lx3all,:))
+          
+          call h5f%add('J1all', J1all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('J2all', J2all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('J3all', J3all(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('v2avgall', v2avgall(1:lx1,1:lx2,1:lx3all))
+          call h5f%add('v3avgall', v3avgall(1:lx1,1:lx2,1:lx3all))
         end select
-    else                 !2D simulation for which arrays were permuted
-      print *, '!!!NOTE:  Permuting arrays prior to output...'
+    else                 !2D simulation 
       select case (flagoutput)
         case (2)    !averaged parameters
           call h5f%add('neall', neall)
@@ -695,42 +699,21 @@ contains
           call h5f%add('v2avgall', v2avgall)
         case (3)     !electron density only output
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
-          allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
-          permarray=reshape(neall,[lx1,lx3all,lx2],order=[1,3,2])
-          call h5f%add('neall', permarray)
-          deallocate(permarray)
+          
+          call h5f%add('neall', neall)
+          
         case default
-          error stop 'this case not yet converted to HDF5'
           print *, '!!!NOTE:  Input file has selected full output, large files may result!'
-          allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
-          allocate(tmparray(lx1,lx2,lx3all))
-          do isp=1,lsp
-            tmparray=nsall(1:lx1,1:lx2,1:lx3all,isp)
-            permarray=reshape(tmparray,[lx1,lx3all,lx2],order=[1,3,2])
-            write(u) permarray
-          end do
-          do isp=1,lsp
-            tmparray=vs1all(1:lx1,1:lx2,1:lx3all,isp)
-            permarray=reshape(tmparray,[lx1,lx3all,lx2],order=[1,3,2])
-            write(u) permarray
-          end do 
-          do isp=1,lsp
-            tmparray=Tsall(1:lx1,1:lx2,1:lx3all,isp)
-            permarray=reshape(tmparray,[lx1,lx3all,lx2],order=[1,3,2])
-            write(u) permarray
-          end do
-          permarray=reshape(J1all,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
-          permarray=reshape(J3all,[lx1,lx3all,lx2],order=[1,3,2])    !Note that components need to be swapped too
-          write(u) permarray
-          permarray=reshape(J2all,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
-          permarray=reshape(v3avgall,[lx1,lx3all,lx2],order=[1,3,2])    !Note swapping of components
-          write(u) permarray
-          permarray=reshape(v2avgall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
-          deallocate(permarray)
-          deallocate(tmparray)
+          
+          call h5f%add('nsall', nsall(1:lx1,1:lx2,1:lx3all,:))
+          call h5f%add('vs1all', vs1all(1:lx1,1:lx2,1:lx3all,:))
+          call h5f%add('Tsall', Tsall(1:lx1,1:lx2,1:lx3all,:))
+          
+          call h5f%add('J1all', J1all)
+          call h5f%add('J3all', J3all)
+          call h5f%add('J2all', J2all)
+          call h5f%add('v3avgall', v3avgall)
+          call h5f%add('v2avgall', v2avgall)
       end select 
     end if
     if (gridflag==1) then
@@ -741,7 +724,6 @@ contains
       call h5f%add('Phiall', Phiall(lx1,:,:))
     end if
 
-    !close(u)
     call h5f%finalize()
 
   
