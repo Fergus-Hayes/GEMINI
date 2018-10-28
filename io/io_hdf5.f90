@@ -13,8 +13,6 @@ implicit none
 
 private
 
-type(hdf5_file) :: h5f
-
 !NONE OF THESE VARIABLES SHOULD BE ACCESSED BY PROCEDURES OUTSIDE THIS MODULE
 character(:), allocatable :: indatfile                    !initial condition data files from input configuration file
 
@@ -595,10 +593,12 @@ contains
     real(wp), dimension(-1:size(Phiall,1)+2,-1:size(Phiall,2)+2,-1:size(Phiall,3)+2,1:lsp) :: nsall,vs1all,Tsall
     real(wp), dimension(1:size(Phiall,1),1:size(Phiall,2),1:size(Phiall,3)) :: v2avgall,v3avgall,v1avgall,Tavgall,neall,Teall
     real(wp), dimension(1:size(Phiall,1),1:size(Phiall,2),1:size(Phiall,3)) :: J1all,J2all,J3all
-    character(:), allocatable :: filenamefull
+    character(:), allocatable :: filenamefull, h5filenamefull
     integer(8) :: recordlength   !can be 8 byte with compiler flag -frecord-marker=8
 
     real(wp), dimension(:,:,:), allocatable :: permarray,tmparray    !permuted variables to be allocated for 2D output  
+    
+    type(hdf5_file) :: h5f
 
  
     !SYSTEM SIZES
@@ -639,8 +639,10 @@ contains
 
 
     !FIGURE OUT THE FILENAME
-    filenamefull=date_filename(outdir,ymd,UTsec)
+    filenamefull = date_filename(outdir,ymd,UTsec)
     print *, 'Output file name:  ',filenamefull
+    h5filenamefull = filenamefull(1:len(filenamefull)-4)//'.h5'
+    print *, 'HDF5 Output file name:  ',h5filenamefull
 
 
     !SOME DEBUG OUTPUT ON FILE SIZE
@@ -650,10 +652,17 @@ contains
     print *, 'Output bit length:  ',recordlength,lx1,lx2,lx3all,lsp
 
 
-    !WRITE THE DATA
-    open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    !has no problem with > 2GB output files
-    write(u) real(ymd,wp),UTsec/3600._wp    !no matter what we must output date and time
+    ! Each HDF5 variable will be written right after the old-fashioned write(u,*) for clarity.
+    ! Once HDF5 is proven, we delete the write(u,*) statements.    
+    call h5f%initialize(h5filenamefull,status='new',action='w')
 
+    !> WRITE THE DATA
+    open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    !has no problem with > 2GB output files
+    
+    write(u) real(ymd,wp),UTsec/3600._wp    !no matter what we must output date and time
+    call h5f%add('/time/ymd', ymd)
+    call h5f%add('/time/UThour',UTsec/3600._wp)
+    
     if (flagswap/=1) then
       select case (flagoutput)
         case (2)    !output ISR-like average parameters
@@ -677,22 +686,40 @@ contains
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
           permarray=reshape(neall,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('neall', permarray)
+          
           permarray=reshape(v1avgall,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('v1avgall', permarray)
+          
           permarray=reshape(Tavgall,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('Tavgall', permarray)
+          
           permarray=reshape(Teall,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('TEall', permarray)
+          
           permarray=reshape(J1all,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('J1all', permarray)
+          
           permarray=reshape(J3all,[lx1,lx3all,lx2],order=[1,3,2])    !Note that components need to be swapped too
           write(u) permarray
+          call h5f%add('J3all', permarray)
+          
           permarray=reshape(J2all,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('J2all', permarray)
+          
           permarray=reshape(v3avgall,[lx1,lx3all,lx2],order=[1,3,2])    !Note swapping of components
           write(u) permarray
+          call h5f%add('v3avgall', permarray)
+          
           permarray=reshape(v2avgall,[lx1,lx3all,lx2],order=[1,3,2])
           write(u) permarray
+          call h5f%add('v2avgall', permarray)
+          
           deallocate(permarray) 
         case (3)     !electron density only output
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
@@ -736,12 +763,16 @@ contains
     if (gridflag==1) then
       print *, 'Writing topside boundary conditions for inverted-type grid...'
       write(u)  Phiall(1,:,:)
+      call h5f%add('Phiall', Phiall(1,:,:))
     else
       print *, 'Writing topside boundary conditions for non-inverted-type grid...'
       write(u)  Phiall(lx1,:,:)
+      call h5f%add('Phiall', Phiall(lx1,:,:))
     end if
 
     close(u)
+    call h5f%finalize()
+
   
   end subroutine output_root_stream_mpi
 
