@@ -12,7 +12,6 @@ We have prioritized ease of setup/install across a wide variety of computing sys
 
 Generally, the Git `master` branch has the current development version and is the best place to start, while more thoroughly-tested releases happen occasionally.  Specific commits corresponding to published results will also be noted, where appropriate, in the corresponding journal article.  
 
-
 ## Prerequisites
 
 The CMake build system is used to manage the large number of dependencies and external libraries needed to compile GEMINI.  
@@ -88,7 +87,6 @@ One could run large 2D or very small 3D simulations (not exceeding a few million
 
 
 ## Quick start
-
 This method is tested on CentOS and Ubuntu.
 This test runs a short demo, taking about 2-5 minutes on a typical Mac / Linux laptop, from scratch. 
 
@@ -238,12 +236,13 @@ Two of the log files created are:
 <!-- ![Figure 2](doc/figure2.png) -->
 
 ##Auxiliary fortran program
-
 Note that there is also a utility that can compute magnetic fields from the currents calculated by GEMINI.  This can be run by:
+
 ```sh
 mpirun -np 4 ./magcalc ../simulations/3Dtest/ ../simulations/input/3Dtest/magfieldpoints.dat
 ```
 This will compute magnetic fields over a grid at ground level using currents computed from the 3Dtest simulation.  In order to run this program, you will need to create a set of field points at which the magnetic perturbations will be calculated.  For example, this could be a list of ground stations, a regular mesh, or a set of satellite tracks.  
+
 
 ## Verifying GEMINI build
 
@@ -253,7 +252,6 @@ cd objects
 cmake ..
 make
 ```
-
 * run all self tests:
   ```sh
   ctest --output-on-failure
@@ -323,7 +321,6 @@ Each simulation needs an input file that specifies location of initial condition
 ```
 
 A large number of examples (in addition to those included in the main repo) are included in the GEMINI-script repository.  
-
 
 ## Running with different boundary and initial conditions:  
 

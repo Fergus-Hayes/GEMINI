@@ -654,7 +654,7 @@ contains
 
     ! Each HDF5 variable will be written right after the old-fashioned write(u,*) for clarity.
     ! Once HDF5 is proven, we delete the write(u,*) statements.    
-    call h5f%initialize(h5filenamefull,status='new',action='w')
+    call h5f%initialize(h5filenamefull,status='new',action='w',comp_lvl=1)
 
     !> WRITE THE DATA
     open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    !has no problem with > 2GB output files
@@ -674,7 +674,7 @@ contains
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
           write(u) neall(1:lx1,1:lx2,1:lx3all)
         case default    !output everything
-          print *, '!!!NOTE:  Input file has selected full ouptut, large files may result!'
+          print *, '!!!NOTE:  Input file has selected full output, large files may result!'
           write(u) nsall(1:lx1,1:lx2,1:lx3all,:),vs1all(1:lx1,1:lx2,1:lx3all,:), &    !this is full output of all parameters in 3D
                       Tsall(1:lx1,1:lx2,1:lx3all,:),J1all(1:lx1,1:lx2,1:lx3all),J2all(1:lx1,1:lx2,1:lx3all), &
                       J3all(1:lx1,1:lx2,1:lx3all),v2avgall(1:lx1,1:lx2,1:lx3all),v3avgall(1:lx1,1:lx2,1:lx3all)
@@ -728,7 +728,7 @@ contains
           write(u) permarray
           deallocate(permarray)
         case default
-          print *, '!!!NOTE:  Input file has selected full ouptut, large files may result!'
+          print *, '!!!NOTE:  Input file has selected full output, large files may result!'
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
           allocate(tmparray(lx1,lx2,lx3all))
           do isp=1,lsp
