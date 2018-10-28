@@ -657,13 +657,14 @@ contains
     call h5f%initialize(h5filenamefull,status='new',action='w',comp_lvl=1)
 
     !> WRITE THE DATA
-    open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    !has no problem with > 2GB output files
+    !open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')    
+    !OK for > 2GB output files
     
-    write(u) real(ymd,wp),UTsec/3600._wp    !no matter what we must output date and time
     call h5f%add('/time/ymd', ymd)
     call h5f%add('/time/UThour',UTsec/3600._wp)
     
     if (flagswap/=1) then
+      error stop 'this case not yet converted to HDF5'
       select case (flagoutput)
         case (2)    !output ISR-like average parameters
           write(u) neall(1:lx1,1:lx2,1:lx3all),v1avgall(1:lx1,1:lx2,1:lx3all), &    !output of ISR-like parameters (ne,Ti,Te,v1,etc.)
@@ -685,39 +686,30 @@ contains
         case (2)    !averaged parameters
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
           permarray=reshape(neall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('neall', permarray)
           
           permarray=reshape(v1avgall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('v1avgall', permarray)
           
           permarray=reshape(Tavgall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('Tavgall', permarray)
           
           permarray=reshape(Teall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('TEall', permarray)
           
           permarray=reshape(J1all,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('J1all', permarray)
           
           permarray=reshape(J3all,[lx1,lx3all,lx2],order=[1,3,2])    !Note that components need to be swapped too
-          write(u) permarray
           call h5f%add('J3all', permarray)
           
           permarray=reshape(J2all,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('J2all', permarray)
           
           permarray=reshape(v3avgall,[lx1,lx3all,lx2],order=[1,3,2])    !Note swapping of components
-          write(u) permarray
           call h5f%add('v3avgall', permarray)
           
           permarray=reshape(v2avgall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
           call h5f%add('v2avgall', permarray)
           
           deallocate(permarray) 
@@ -725,9 +717,10 @@ contains
           print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
           permarray=reshape(neall,[lx1,lx3all,lx2],order=[1,3,2])
-          write(u) permarray
+          call h5f%add('neall', permarray)
           deallocate(permarray)
         case default
+          error stop 'this case not yet converted to HDF5'
           print *, '!!!NOTE:  Input file has selected full output, large files may result!'
           allocate(permarray(lx1,lx3all,lx2))    !temporary work array that has been permuted
           allocate(tmparray(lx1,lx2,lx3all))
@@ -762,11 +755,9 @@ contains
     end if
     if (gridflag==1) then
       print *, 'Writing topside boundary conditions for inverted-type grid...'
-      write(u)  Phiall(1,:,:)
       call h5f%add('Phiall', Phiall(1,:,:))
     else
       print *, 'Writing topside boundary conditions for non-inverted-type grid...'
-      write(u)  Phiall(lx1,:,:)
       call h5f%add('Phiall', Phiall(lx1,:,:))
     end if
 
