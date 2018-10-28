@@ -110,8 +110,20 @@ This test runs a short demo, taking about 2-5 minutes on a typical Mac / Linux l
    ctest --output-on-failure
    ```
 
-If you get errors about libraries not found or it's using the wrong compiler, see the `build_.sh` scripts for examples of how to easily tell CMake to use custom library and compiler locations.
-   
+If you get errors about libraries not found or it's using the wrong compiler, see the `build_.sh` scripts for examples of how to easily tell CMake to use customer library and compiler locations.
+
+(OPTIONAL HDF5):
+as above, substituting:
+
+```sh
+cmake -DUSEHDF5=yes ..
+```
+
+HDF5 requires 
+* `libhdf5-dev` (Ubuntu)
+* `hdf5-devel` (CentOS, available from [EPEL](https://centos.pkgs.org/7/epel-x86_64/hdf5-devel-1.8.12-10.el7.x86_64.rpm.html))
+* `brew install hdf5` (MacOS)
+
 ### input directory
 The example `config.ini` in `initialize/` looks for input grid data in `../simulations`.
 If you plan to push back to the repository, please don't edit those example `.ini` file paths, instead use softlinks `ln -s` to point somewhere else if needed.
