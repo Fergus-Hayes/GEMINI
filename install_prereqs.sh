@@ -14,15 +14,18 @@ linux*)
      yum install pkg-config gcc-gfortran g++ cmake make 
      yum install MUMPS-openmpi-devel lapack-devel scalapack-openmpi-devel blacs-openmpi-devel openmpi-devel libmetis-devel libscotch-devel ptscotch-openmpi-devel atlas-devel
      yum install octave
+     yum install hdf5-devel
   else
     apt update
     apt install gfortran make
     apt install libmumps-dev liblapack-dev libscalapack-mpi-dev libblacs-mpi-dev libopenmpi-dev libmetis-dev libscotch-dev libptscotch-dev libatlas-base-dev 
     apt install --no-install-recommends octave
+    apt install libhdf5-dev
   fi
   ;;
 darwin*)
   brew install cmake gcc make lapack scalapack openmpi octave
+  brew install hdf5
 # MUMPS is a little more involved, but OK.
   brew tap dpo/openblas;
   brew tap-pin dpo/openblas;
