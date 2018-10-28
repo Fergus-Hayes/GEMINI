@@ -12,31 +12,41 @@ disp(['sim grid dimensions: ',num2str(lxs)])
 fsimres = [direc,filesep,filename];
 assert(exist(fsimres,'file')==2, [fsimres,' does not exist'])
 
+
 fid=fopen(fsimres,'r');
 simdt(fid);
+
 %% Number densities
+
 ne=fread(fid,prod(lxs),'real*8');
 ne=reshape(ne, lxs);
+
 %% Parallel Velocities
+
 v1=fread(fid,prod(lxs),'real*8');
 v1=reshape(v1,lxs);
+
 %% Temperatures
 Ti=fread(fid,prod(lxs),'real*8');
 Ti=reshape(Ti,lxs);
 
 Te=fread(fid,prod(lxs),'real*8');
 Te=reshape(Te,lxs);
+
 %% Current densities
 J1 = read3D(fid, lxs);
 J2 = read3D(fid, lxs);
 J3 = read3D(fid, lxs);
+
 %% Perpendicular drifts
 v2 = read3D(fid, lxs);
 v3 = read3D(fid, lxs);
+
 %% Topside potential
 Phitop = read2D(fid, lxs);
 
 fclose(fid);
+
 
 %% REORGANIZE ACCORDING TO MATLABS CONCEPT OF A 2D or 3D DATA SET
 if lxs(2) == 1    %a 2D simulations was done in x1 and x3
