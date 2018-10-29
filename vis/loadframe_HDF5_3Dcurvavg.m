@@ -57,8 +57,8 @@ else
   Te = h5read(fn, '/TEall');
   %% Current densities
   J1 = h5read(fn, '/J1all');
-  J2 = h5read(fn, '/J2all');
-  J3 = h5read(fn, '/J3all');
+  J2 = permute(h5read(fn, '/J2all'), [1,3,2]);
+  J3 = permute(h5read(fn, '/J3all'), [1,3,2]);
   %% Perpendicular drifts
   v2 = h5read(fn, '/v2avgall');
   v3 = h5read(fn, '/v3avgall');

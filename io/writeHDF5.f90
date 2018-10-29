@@ -116,11 +116,14 @@ else                 !2D simulation
       call h5f%add('v1avgall', v1avgall)
       call h5f%add('Tavgall', Tavgall)
       call h5f%add('TEall', Teall)
+
       call h5f%add('J1all', J1all)
-      call h5f%add('J3all', J3all)
-      call h5f%add('J2all', J2all)
-      call h5f%add('v3avgall', v3avgall)
-      call h5f%add('v2avgall', v2avgall)
+
+      ! J3,J2 and V3, V2 are swapped
+      call h5f%add('J2all', J3all)
+      call h5f%add('J3all', J2all)
+      call h5f%add('v2avgall', v3avgall)
+      call h5f%add('v3avgall', v2avgall)
     case (3)     !electron density only output
       print *, '!!!NOTE:  Input file has selected electron density only output, make sure this is what you really want!'
       
@@ -134,10 +137,12 @@ else                 !2D simulation
       call h5f%add('Tsall', Tsall(1:lx1,1:lx2,1:lx3all,:))
       
       call h5f%add('J1all', J1all)
-      call h5f%add('J3all', J3all)
-      call h5f%add('J2all', J2all)
-      call h5f%add('v3avgall', v3avgall)
-      call h5f%add('v2avgall', v2avgall)
+
+      ! J3,J2 and V3, V2 are swapped
+      call h5f%add('J2all', J3all)
+      call h5f%add('J3all', J2all)
+      call h5f%add('v2avgall', v3avgall)
+      call h5f%add('v3avgall', v2avgall)
   end select 
 end if
 if (gridflag==1) then
