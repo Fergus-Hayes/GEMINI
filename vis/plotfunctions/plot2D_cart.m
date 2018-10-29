@@ -125,9 +125,7 @@ FS=8;
 
 %MAKE THE PLOT!
 if (xg.lx(3)==1)
-%  hi=imagesc(xp/1e3, zp,parmp, 'parent', ha);
-  imagesc(ha,xp/1e3,zp,parmp);
-  hi=ha;
+  hi=imagesc(xp/1e3, zp,parmp, 'parent', ha);
   hold(ha, 'on')
   plot(ha, [minxp,maxxp],[altref,altref],'w--','LineWidth',2);
   if ~isempty(sourcemlat)
@@ -149,9 +147,7 @@ if (xg.lx(3)==1)
   xlabel(ha, 'eastward dist. (km)')
   ylabel(ha, 'altitude (km)')
 elseif (xg.lx(2)==1)
-%  hi=imagesc(yp/1e3,zp,parmp3, 'parent', ha);
-  imagesc(ha,yp/1e3,zp,parmp3);
-  hi=ha;
+  hi=imagesc(yp/1e3,zp,parmp3, 'parent', ha);
   hold(ha, 'on')
   %plot([minyp,maxyp],[altref,altref],'w--','LineWidth',2);
   if (~isempty(sourcemlat))
@@ -172,11 +168,11 @@ elseif (xg.lx(2)==1)
   ylabel(ha, 'altitude (km)')
 end
 
+
 t = datenum(ymd(1), ymd(2), ymd(3), 0, 0, UTsec);
 ttxt = {datestr(t,1), [datestr(t,13),' UT']};
 title(ha, ttxt)
 %text(xp(round(lxp/10)),zp(lzp-round(lzp/7.5)),strval,'FontSize',18,'Color',[0.66 0.66 0.66],'FontWeight','bold');
 %text(xp(round(lxp/10)),zp(lzp-round(lzp/7.5)),strval,'FontSize',16,'Color',[0.5 0.5 0.5],'FontWeight','bold');
-
 
 end
