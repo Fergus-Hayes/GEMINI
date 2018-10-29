@@ -42,6 +42,7 @@ endif(USEGLOW)
 add_subdirectory(numerical)
 
 include(${PROJECT_SOURCE_DIR}/cmake/io.cmake)
+iofun(USEHDF5)
 
 add_library(temporal temporal/temporal.f90)
 target_link_libraries(temporal PRIVATE const mpimod grid MPI::MPI_Fortran)
