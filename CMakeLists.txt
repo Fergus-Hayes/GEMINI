@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.12)
 # 3.9: MPI::MPI_Fortran  3.11 for FindLapack bug   3.12 for find_ROOT
 project(gemini3d Fortran C)  # MUST include C language for Intel / MKL to work
 enable_testing()
-
 if(NOT realbits)
   set(realbits 64)
 endif()
@@ -10,8 +9,8 @@ endif()
 option(TRACE "dump variables to disk at certain locations in program" off)
 option(USEGLOW "use NCAR GLOW instead of Fang")
 option(USEHDF "use HDF5")
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules/)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules/)
 
 include(${PROJECT_SOURCE_DIR}/cmake/compilers.cmake)
 
@@ -38,7 +37,6 @@ if(USEGLOW)
 else()
   target_sources(ionization PRIVATE ionization/glow_dummy.f90)
 endif(USEGLOW)
-
 add_subdirectory(numerical)
 
 include(${PROJECT_SOURCE_DIR}/cmake/io.cmake)
@@ -52,11 +50,11 @@ target_compile_options(temporal PRIVATE ${FFLAGS})
 add_library(neutral neutral/neutral.f90)
 target_link_libraries(neutral PUBLIC interp io msis temporal MPI::MPI_Fortran)
 target_include_directories(neutral PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/numerical)
+
 target_compile_options(neutral PRIVATE ${FFLAGS})
 
 add_library(collision collisions/collisions.f90)
 target_link_libraries(collision PRIVATE const)
-
 target_include_directories(collision PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/numerical)
 target_compile_options(collision PRIVATE ${FFLAGS})
 

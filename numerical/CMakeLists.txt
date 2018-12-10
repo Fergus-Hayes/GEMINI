@@ -23,11 +23,9 @@ target_link_libraries(interp PRIVATE const)
 target_compile_options(interp PRIVATE ${FFLAGS})
 # set_target_properties(interp PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_SOURCE_DIR}/objects)
 
-
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
   include(interpolation/test_interp.cmake)
 endif()
-
 
 add_library(mpimod mpimod/mpimod.F90)
 target_link_libraries(mpimod PRIVATE const MPI::MPI_Fortran)

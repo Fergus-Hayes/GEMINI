@@ -31,7 +31,6 @@ else()
   find_package(SCALAPACK REQUIRED COMPONENTS OpenMPI)
 endif()
 
-
 # Mumps
 if(realbits EQUAL 64)
   set(mumpscomp d)
