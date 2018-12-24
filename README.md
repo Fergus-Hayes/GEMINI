@@ -123,6 +123,7 @@ HDF5 requires
 * `libhdf5-dev` (Ubuntu)
 * `hdf5-devel` (CentOS, available from [EPEL](https://centos.pkgs.org/7/epel-x86_64/hdf5-devel-1.8.12-10.el7.x86_64.rpm.html))
 * `brew install hdf5` (MacOS)
+* Cygwin is MISSING the Fortran HDF5 drivers. In general, please use Windows Subsystem for Windows (which does work with HDF5) instead of Cygwin for better performance with Ubuntu 18.04 natively running inside Windows.
 
 ### input directory
 The example `config.ini` in `initialize/` looks for input grid data in `../simulations`.
