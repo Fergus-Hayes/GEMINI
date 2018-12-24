@@ -13,7 +13,7 @@ function(iofun USEHDF5)
 
     FetchContent_Declare(oohdf5
       GIT_REPOSITORY https://github.com/scivision/oo_hdf5_fortran.git
-      GIT_TAG d98b846
+      GIT_TAG 25c27b6
     )
 
 
