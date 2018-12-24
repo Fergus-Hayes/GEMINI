@@ -47,13 +47,13 @@ call gather_recv(vs1,tagvs1,vs1all)
 call gather_recv(Ts,tagTs,Tsall)
 
 
-!RADD--- NEED TO ALSO GATHER FULL GRID ELECTRODYANMICS PARAMTERS FROM WORKERS
+!> RADD--- NEED TO ALSO GATHER FULL GRID ELECTRODYANMICS PARAMTERS FROM WORKERS
 call gather_recv(J1,tagJ1,J1all)
 call gather_recv(J2,tagJ2,J2all)
 call gather_recv(J3,tagJ3,J3all)
 
 
-!COMPUTE AVERAGE VALUES FOR ION PLASMA PARAMETERS
+!> COMPUTE AVERAGE VALUES FOR ION PLASMA PARAMETERS
 v1avgall=sum(nsall(1:lx1,1:lx2,1:lx3all,1:lsp-1)*vs1all(1:lx1,1:lx2,1:lx3all,1:lsp-1),4)
 v1avgall=v1avgall/nsall(1:lx1,1:lx2,1:lx3all,lsp)    !compute averages for output.
 Tavgall=sum(nsall(1:lx1,1:lx2,1:lx3all,1:lsp-1)*Tsall(1:lx1,1:lx2,1:lx3all,1:lsp-1),4)
@@ -62,14 +62,13 @@ neall=nsall(1:lx1,1:lx2,1:lx3all,lsp)
 Teall=Tsall(1:lx1,1:lx2,1:lx3all,lsp)
 
 
-!FIGURE OUT THE FILENAME
+!> FIGURE OUT THE FILENAME
 filenamefull = date_filename(outdir,ymd,UTsec)
-print *, 'Output file name:  ',filenamefull
 h5filenamefull = filenamefull(1:len(filenamefull)-4)//'.h5'
 print *, 'HDF5 Output file name:  ',h5filenamefull
 
 
-!SOME DEBUG OUTPUT ON FILE SIZE
+!> SOME DEBUG OUTPUT ON FILE SIZE
 recordlength=int(8,8)+int(8,8)*int(3,8)*int(lx1,8)*int(lx2,8)*int(lx3all,8)*int(lsp,8)+ &
              int(8,8)*int(5,8)*int(lx1,8)*int(lx2,8)*int(lx3all,8)+ &
              int(8,8)*int(lx2,8)*int(lx3all,8)
@@ -157,6 +156,39 @@ call h5f%finalize()
 
 
 end procedure output_root_stream_mpi
+
+
+module procedure output_aur_root
+!! COLLECT COMPLETE DATA FROM WORKERS AND PROCESS FOR OUTPUT.  
+!! NO GHOST CELLS (I HOPE)
+
+real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+real(wp), dimension(1:lx2,1:lwave,1:lx3all) :: iverall
+
+character(:), allocatable :: outdir_composite, filenamefull, h5fn
+
+type(hdf5_file) :: h5f
+
+ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+
+call gather_recv(ivertmp,tagAur,iverall)
+
+!> FORM THE INPUT FILE NAME
+outdir_composite=outdir//'/aurmaps/'
+filenamefull=date_filename(outdir_composite,ymd,UTsec)
+h5fn = filenamefull(1:len(filenamefull)-4)//'.h5'
+
+print *, 'Output file name (auroral maps):  ', h5fn
+
+call h5f%initialize(h5fn, status='new', action='w', comp_lvl=1)
+
+if(flagswap/=1) then
+  call h5f%add('iverall', reshape(iverall,[lx2,lx3all,lwave],order=[1,3,2]))
+else
+  call h5f%add('iverall', reshape(iverall,[lx3all,lwave,lx2],order=[3,2,1]))
+end if
+
+end procedure output_aur_root
 
 
 module procedure output_magfields

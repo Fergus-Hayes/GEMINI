@@ -31,20 +31,6 @@ real(wp), intent(in) :: UTsec
 real(wp), dimension(:), intent(in)  :: Br,Btheta,Bphi
 end subroutine output_magfields
 
-module subroutine output_aur(outdir,flagglow,ymd,UTsec,iver)
-character(*), intent(in) :: outdir
-integer, intent(in) :: flagglow
-
-integer, dimension(3), intent(in) :: ymd
-real(wp), intent(in) :: UTsec
-
-real(wp), dimension(:,:,:), intent(in) :: iver
-end subroutine output_aur
-
-module subroutine output_aur_workers(iver)
-real(wp), dimension(:,:,:), intent(in) :: iver
-end subroutine output_aur_workers
-
 module subroutine output_aur_root(outdir,flagglow,ymd,UTsec,iver)
 character(*), intent(in) :: outdir
 integer, intent(in) :: flagglow, ymd(3)
@@ -53,9 +39,6 @@ real(wp), dimension(:,:,:), intent(in) :: iver
 end subroutine output_aur_root
 
 end interface
-
-
-
 
 !> NONE OF THESE VARIABLES SHOULD BE ACCESSED BY PROCEDURES OUTSIDE THIS MODULE
 character(:), allocatable, private :: indatfile                    
@@ -638,6 +621,40 @@ call gather_send(J2,tagJ2)
 call gather_send(J3,tagJ3)  
 
 end subroutine output_workers_mpi
+
+
+subroutine output_aur(outdir,flagglow,ymd,UTsec,iver)
+character(*), intent(in) :: outdir
+integer, intent(in) :: flagglow
+
+integer, dimension(3), intent(in) :: ymd
+real(wp), intent(in) :: UTsec
+
+real(wp), dimension(:,:,:), intent(in) :: iver
+!! A BASIC WRAPPER FOR THE ROOT AND WORKER OUTPUT FUNCTIONS BOTH ROOT AND WORKERS CALL THIS PROCEDURE
+!! SO UNALLOCATED VARIABLES MUST BE DECLARED AS ALLOCATABLE, INTENT(INOUT)
+
+if (myid/=0) then
+  call output_aur_workers(iver)
+else
+  call output_aur_root(outdir,flagglow,ymd,UTsec,iver)
+end if
+
+end subroutine output_aur
+
+
+subroutine output_aur_workers(iver)
+real(wp), dimension(:,:,:), intent(in) :: iver
+!! SEND COMPLETE DATA FROM WORKERS TO ROOT PROCESS FOR OUTPUT.  NO GHOST CELLS (I HOPE)
+
+real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+
+ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+
+!------- SEND AURORA PARAMETERS TO ROOT
+call gather_send(ivertmp,tagAur)
+
+end subroutine output_aur_workers
 
 
 pure function date_filename(outdir,ymd,UTsec)
