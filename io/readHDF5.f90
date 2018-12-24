@@ -69,7 +69,7 @@ if (flagswap/=1) then
   call h5f%get('vs1all', vs1all(1:lx1,1:lx2,1:lx3all,1:lsp))
   call h5f%get('Tsall', Tsall(1:lx1,1:lx2,1:lx3all,1:lsp))
 else
-  allocate(statetmp(lx1,lx3all,lx2,lsp))
+  !allocate(statetmp(lx1,lx3all,lx2,lsp))
   !print *, shape(statetmp),shape(nsall)
 
   call h5f%get('nsall', statetmp)
