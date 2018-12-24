@@ -216,11 +216,11 @@ contains
         UTsecnext=UTsecprev
         if (myid==0) then    !root
           write(filename,*) trim(adjustl(neudir)),'simsize.dat'
-          write(*,*) 'Inputting neutral size from file:  ',trim(adjustl(filename))
+          print *, 'Inputting neutral size from file:  ',trim(adjustl(filename))
           open(inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
           read(inunit) lrhon,lzn
           close(inunit)
-          write(*,*) 'Neutral data has lrho,lz size:  ',lrhon,lzn,' with spacing drho,dz',drhon,dzn
+          print *, 'Neutral data has lrho,lz size:  ',lrhon,lzn,' with spacing drho,dz',drhon,dzn
 
           do iid=1,lid-1
             call mpi_send(lrhon,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
@@ -241,7 +241,7 @@ contains
         zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
 !        zn=zn+0.5d0*dzn             !cell-center
         if (myid==0) then
-          write(*,*) 'Creating neutral grid with rho,z extent:  ',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
+          print *, 'Creating neutral grid with rho,z extent:  ',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
         end if
 
         
@@ -251,7 +251,7 @@ contains
 
         !convert plasma grid locations to z,rho values to be used in interoplation.  altitude ~ zi; lat/lon --> rhoi.  Also compute unit vectors and projections
         if (myid==0) then
-          write(*,*) 'Computing alt,radial distance values for plasma grid and completing rotations'
+          print *, 'Computing alt,radial distance values for plasma grid and completing rotations'
         end if
         zimat=x%alt     !vertical coordinate
         do ix3=1,lx3
@@ -360,11 +360,11 @@ contains
 
         !PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
         if (myid==0) then
-          write(*,*) 'Min/max rhon,zn values',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
-          write(*,*) 'Min/max rhoi,zi values',minval(rhoi),maxval(rhoi),minval(zi),maxval(zi)
-          write(*,*) 'Source lat/long:  ',meanlat,meanlong
-          write(*,*) 'Plasma grid lat range:  ',minval(pack(x%glat(:,:,:),.true.)),maxval(pack(x%glat(:,:,:),.true.))
-          write(*,*) 'Plasma grid lon range:  ',minval(pack(x%glon(:,:,:),.true.)),maxval(pack(x%glon(:,:,:),.true.))
+          print *, 'Min/max rhon,zn values',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
+          print *, 'Min/max rhoi,zi values',minval(rhoi),maxval(rhoi),minval(zi),maxval(zi)
+          print *, 'Source lat/long:  ',meanlat,meanlong
+          print *, 'Plasma grid lat range:  ',minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+          print *, 'Plasma grid lon range:  ',minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
         end if
       end if
 
@@ -372,22 +372,22 @@ contains
       !ALL THE NECESSARY ARRAYS EXIST AT THIS POINT, SO GO AHEAD AND READ IN THE DATA - only root should do this and then distribute to the workers
       if (myid==0) then    !root
         !read in the data from file
-        write(*,*) 'tprev,tnow,tnext:  ',tprev,t+dt/2d0,tnext
+        print *, 'tprev,tnow,tnext:  ',tprev,t+dt/2d0,tnext
         ymdtmp=ymdnext
         UTsectmp=UTsecnext
         call dateinc(dtneu,ymdtmp,UTsectmp)    !get the date for "next" params
         filename=date_filename(neudir,ymdtmp,UTsectmp)     !form the standard data filename
-        write(*,*) 'Pulling neutral data from file:  ',trim(adjustl(filename))
+        print *, 'Pulling neutral data from file:  ',trim(adjustl(filename))
         open(inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
         read(inunit) dnO,dnN2,dnO2,dvnrho,dvnz,dTn
         close(inunit)
 
-        write(*,*) 'Min/max values for dnO:  ',minval(pack(dnO,.true.)),maxval(pack(dnO,.true.))
-        write(*,*) 'Min/max values for dnN:  ',minval(pack(dnN2,.true.)),maxval(pack(dnN2,.true.))
-        write(*,*) 'Min/max values for dnO:  ',minval(pack(dnO2,.true.)),maxval(pack(dnO2,.true.))
-        write(*,*) 'Min/max values for dvnrho:  ',minval(pack(dvnrho,.true.)),maxval(pack(dvnrho,.true.))
-        write(*,*) 'Min/max values for dvnz:  ',minval(pack(dvnz,.true.)),maxval(pack(dvnz,.true.))
-        write(*,*) 'Min/max values for dTn:  ',minval(pack(dTn,.true.)),maxval(pack(dTn,.true.))
+        print *, 'Min/max values for dnO:  ',minval(dnO),maxval(dnO)
+        print *, 'Min/max values for dnN:  ',minval(dnN2),maxval(dnN2)
+        print *, 'Min/max values for dnO:  ',minval(dnO2),maxval(dnO2)
+        print *, 'Min/max values for dvnrho:  ',minval(dvnrho),maxval(dvnrho)
+        print *, 'Min/max values for dvnz:  ',minval(dvnz),maxval(dvnz)
+        print *, 'Min/max values for dTn:  ',minval(dTn),maxval(dTn)
 
         !send a full copy of the data to all of the workers
         do iid=1,lid-1
@@ -411,7 +411,7 @@ contains
 
       !DO SPATIAL INTERPOLATION OF EACH PARAMETER (COULD CONSERVE SOME MEMORY BY NOT STORING DVNRHOIPREV AND DVNRHOINEXT, ETC.)
       if (myid==0) then
-        write(*,*) 'Initiating spatial interpolations for date:  ',ymdtmp,' ',UTsectmp
+        print *, 'Initiating spatial interpolations for date:  ',ymdtmp,' ',UTsectmp
       end if
       parami=interp2(zn,rhon,dnO,zi,rhoi)     !interp to temp var.
       dnOiprev=dnOinext                       !save new pervious
@@ -440,18 +440,18 @@ contains
 
       !MORE DIAG
       if (myid==lid/2) then
-        write(*,*) 'Min/max values for dnOi:  ',minval(pack(dnOinext,.true.)),maxval(pack(dnOinext,.true.))
-        write(*,*) 'Min/max values for dnN2i:  ',minval(pack(dnN2inext,.true.)),maxval(pack(dnN2inext,.true.))
-        write(*,*) 'Min/max values for dnO2i:  ',minval(pack(dnO2inext,.true.)),maxval(pack(dnO2inext,.true.))
-        write(*,*) 'Min/max values for dvrhoi:  ',minval(pack(dvnrhoinext,.true.)),maxval(pack(dvnrhoinext,.true.))
-        write(*,*) 'Min/max values for dvnzi:  ',minval(pack(dvnzinext,.true.)),maxval(pack(dvnzinext,.true.))
-        write(*,*) 'Min/max values for dTni:  ',minval(pack(dTninext,.true.)),maxval(pack(dTninext,.true.))
+        print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+        print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+        print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+        print *, 'Min/max values for dvrhoi:  ',minval(dvnrhoinext),maxval(dvnrhoinext)
+        print *, 'Min/max values for dvnzi:  ',minval(dvnzinext),maxval(dvnzinext)
+        print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
       end if
 
 
       !ROTATE VECTORS INTO X1 X2 DIRECTIONS (Need to include unit vectors with grid structure)
       if (myid==0) then
-        write(*,*) 'Rotating vectors for date:  ',ymdtmp,' ',UTsectmp
+        print *, 'Rotating vectors for date:  ',ymdtmp,' ',UTsectmp
       end if
 
       dvn1iprev=dvn1inext   !save the old data
@@ -466,13 +466,13 @@ contains
 
       !MORE DIAGNOSTICS
       if (myid==lid/2) then
-        write(*,*) 'Min/max values for dnOi:  ',minval(pack(dnOinext,.true.)),maxval(pack(dnOinext,.true.))
-        write(*,*) 'Min/max values for dnN2i:  ',minval(pack(dnN2inext,.true.)),maxval(pack(dnN2inext,.true.))
-        write(*,*) 'Min/max values for dnO2i:  ',minval(pack(dnO2inext,.true.)),maxval(pack(dnO2inext,.true.))
-        write(*,*) 'Min/max values for dvn1i:  ',minval(pack(dvn1inext,.true.)),maxval(pack(dvn1inext,.true.))
-        write(*,*) 'Min/max values for dvn2i:  ',minval(pack(dvn2inext,.true.)),maxval(pack(dvn2inext,.true.))
-        write(*,*) 'Min/max values for dvn3i:  ',minval(pack(dvn3inext,.true.)),maxval(pack(dvn3inext,.true.))
-        write(*,*) 'Min/max values for dTni:  ',minval(pack(dTninext,.true.)),maxval(pack(dTninext,.true.))
+        print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+        print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+        print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+        print *, 'Min/max values for dvn1i:  ',minval(dvn1inext),maxval(dvn1inext)
+        print *, 'Min/max values for dvn2i:  ',minval(dvn2inext),maxval(dvn2inext)
+        print *, 'Min/max values for dvn3i:  ',minval(dvn3inext),maxval(dvn3inext)
+        print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
       end if
   
 
@@ -518,14 +518,14 @@ contains
 
     !SOME BASIC DIAGNOSTICS
     if (myid==lid/2) then
-      write(*,*) 'tprev,t,tnext:  ',tprev,t+dt/2d0,tnext
-      write(*,*) 'Min/max values for dnOinow:  ',minval(pack(dnOinow,.true.)),maxval(pack(dnOinow,.true.))
-      write(*,*) 'Min/max values for dnN2inow:  ',minval(pack(dnN2inow,.true.)),maxval(pack(dnN2inow,.true.))
-      write(*,*) 'Min/max values for dnO2inow:  ',minval(pack(dnO2inow,.true.)),maxval(pack(dnO2inow,.true.))
-      write(*,*) 'Min/max values for dvn1inow:  ',minval(pack(dvn1inow,.true.)),maxval(pack(dvn1inow,.true.))
-      write(*,*) 'Min/max values for dvn2inow:  ',minval(pack(dvn2inow,.true.)),maxval(pack(dvn2inow,.true.))
-      write(*,*) 'Min/max values for dvn3inow:  ',minval(pack(dvn3inow,.true.)),maxval(pack(dvn3inow,.true.))
-      write(*,*) 'Min/max values for dTninow:  ',minval(pack(dTninow,.true.)),maxval(pack(dTninow,.true.))
+      print *, 'tprev,t,tnext:  ',tprev,t+dt/2d0,tnext
+      print *, 'Min/max values for dnOinow:  ',minval(dnOinow),maxval(dnOinow)
+      print *, 'Min/max values for dnN2inow:  ',minval(dnN2inow),maxval(dnN2inow)
+      print *, 'Min/max values for dnO2inow:  ',minval(dnO2inow),maxval(dnO2inow)
+      print *, 'Min/max values for dvn1inow:  ',minval(dvn1inow),maxval(dvn1inow)
+      print *, 'Min/max values for dvn2inow:  ',minval(dvn2inow),maxval(dvn2inow)
+      print *, 'Min/max values for dvn3inow:  ',minval(dvn3inow),maxval(dvn3inow)
+      print *, 'Min/max values for dTninow:  ',minval(dTninow),maxval(dTninow)
     end if
 
 
@@ -599,11 +599,11 @@ contains
         UTsecnext=UTsecprev
         if (myid==0) then    !root
           write(filename,*) trim(adjustl(neudir)),'simsize.dat'
-          write(*,*) 'Inputting neutral size from file:  ',trim(adjustl(filename))
+          print *, 'Inputting neutral size from file:  ',trim(adjustl(filename))
           open(inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
           read(inunit) lyn,lzn
           close(inunit)
-          write(*,*) 'Neutral data has ly,lz size:  ',lyn,lzn,' with spacing dy,dz',dyn,dzn
+          print *, 'Neutral data has ly,lz size:  ',lyn,lzn,' with spacing dy,dz',dyn,dzn
 
           do iid=1,lid-1
             call mpi_send(lyn,1,MPI_INTEGER,iid,tagly,MPI_COMM_WORLD,ierr)
@@ -626,7 +626,7 @@ contains
         zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
 !        zn=zn+0.5d0*dzn             !cell-center
         if (myid==0) then
-          write(*,*) 'Creating neutral grid with y,z extent:  ',minval(yn),maxval(yn),minval(zn),maxval(zn)
+          print *, 'Creating neutral grid with y,z extent:  ',minval(yn),maxval(yn),minval(zn),maxval(zn)
         end if
 
         
@@ -637,7 +637,7 @@ contains
 
         !convert plasma grid locations to z,y values to be used in interoplation.  altitude ~ zi; north dist. --> yi.  Also compute unit vectors and projections
         if (myid==0) then
-          write(*,*) 'Computing alt,radial distance values for plasma grid and completing rotations'
+          print *, 'Computing alt,radial distance values for plasma grid and completing rotations'
         end if
         zimat=x%alt     !vertical coordinate
         do ix3=1,lx3
@@ -739,11 +739,11 @@ contains
         call clear_unitvecs(x)
 
         if (myid==0) then
-          write(*,*) 'Min/max yn,zn values',minval(yn),maxval(yn),minval(zn),maxval(zn)
-          write(*,*) 'Min/max yi,zi values',minval(yi),maxval(yi),minval(zi),maxval(zi)
-          write(*,*) 'Source lat/long:  ',meanlat,meanlong
-          write(*,*) 'Plasma grid lat range:  ',minval(pack(x%glat(:,:,:),.true.)),maxval(pack(x%glat(:,:,:),.true.))
-          write(*,*) 'Plasma grid lon range:  ',minval(pack(x%glon(:,:,:),.true.)),maxval(pack(x%glon(:,:,:),.true.))
+          print *, 'Min/max yn,zn values',minval(yn),maxval(yn),minval(zn),maxval(zn)
+          print *, 'Min/max yi,zi values',minval(yi),maxval(yi),minval(zi),maxval(zi)
+          print *, 'Source lat/long:  ',meanlat,meanlong
+          print *, 'Plasma grid lat range:  ',minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+          print *, 'Plasma grid lon range:  ',minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
         end if
       end if
 
@@ -751,22 +751,22 @@ contains
       !ALL THE NECESSARY ARRAYS EXIST AT THIS POINT, SO GO AHEAD AND READ IN THE DATA - only root should do this and then distribute to the workers
       if (myid==0) then    !root
         !read in the data from file
-        write(*,*) 'tprev,tnow,tnext:  ',tprev,t+dt/2d0,tnext
+        print *, 'tprev,tnow,tnext:  ',tprev,t+dt/2d0,tnext
         ymdtmp=ymdnext
         UTsectmp=UTsecnext
         call dateinc(dtneu,ymdtmp,UTsectmp)    !get the date for "next" params
         filename=date_filename(neudir,ymdtmp,UTsectmp)     !form the standard data filename
-        write(*,*) 'Pulling neutral data from file:  ',trim(adjustl(filename))
+        print *, 'Pulling neutral data from file:  ',trim(adjustl(filename))
         open(inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
         read(inunit) dnO,dnN2,dnO2,dvnrho,dvnz,dTn    !vnrho here interpreted as vny (yes, I'm lazy)
         close(inunit)
 
-        write(*,*) 'Min/max values for dnO:  ',minval(pack(dnO,.true.)),maxval(pack(dnO,.true.))
-        write(*,*) 'Min/max values for dnN:  ',minval(pack(dnN2,.true.)),maxval(pack(dnN2,.true.))
-        write(*,*) 'Min/max values for dnO:  ',minval(pack(dnO2,.true.)),maxval(pack(dnO2,.true.))
-        write(*,*) 'Min/max values for dvny:  ',minval(pack(dvnrho,.true.)),maxval(pack(dvnrho,.true.))
-        write(*,*) 'Min/max values for dvnz:  ',minval(pack(dvnz,.true.)),maxval(pack(dvnz,.true.))
-        write(*,*) 'Min/max values for dTn:  ',minval(pack(dTn,.true.)),maxval(pack(dTn,.true.))
+        print *, 'Min/max values for dnO:  ',minval(dnO),maxval(dnO)
+        print *, 'Min/max values for dnN:  ',minval(dnN2),maxval(dnN2)
+        print *, 'Min/max values for dnO:  ',minval(dnO2),maxval(dnO2)
+        print *, 'Min/max values for dvny:  ',minval(dvnrho),maxval(dvnrho)
+        print *, 'Min/max values for dvnz:  ',minval(dvnz),maxval(dvnz)
+        print *, 'Min/max values for dTn:  ',minval(dTn),maxval(dTn)
 
         !send a full copy of the data to all of the workers
         do iid=1,lid-1
@@ -790,7 +790,7 @@ contains
 
       !DO SPATIAL INTERPOLATION OF EACH PARAMETER (COULD CONSERVE SOME MEMORY BY NOT STORING DVNRHOIPREV AND DVNRHOINEXT, ETC.)
       if (myid==0) then
-        write(*,*) 'Initiating spatial interpolations for date:  ',ymdtmp,' ',UTsectmp
+        print *, 'Initiating spatial interpolations for date:  ',ymdtmp,' ',UTsectmp
       end if
       parami=interp2(zn,yn,dnO,zi,yi)     !interp to temp var.
       dnOiprev=dnOinext                       !save new pervious
@@ -819,18 +819,18 @@ contains
 
       !MORE DIAG
       if (myid==lid/2) then
-        write(*,*) 'Min/max values for dnOi:  ',minval(pack(dnOinext,.true.)),maxval(pack(dnOinext,.true.))
-        write(*,*) 'Min/max values for dnN2i:  ',minval(pack(dnN2inext,.true.)),maxval(pack(dnN2inext,.true.))
-        write(*,*) 'Min/max values for dnO2i:  ',minval(pack(dnO2inext,.true.)),maxval(pack(dnO2inext,.true.))
-        write(*,*) 'Min/max values for dvyi:  ',minval(pack(dvnrhoinext,.true.)),maxval(pack(dvnrhoinext,.true.))
-        write(*,*) 'Min/max values for dvnzi:  ',minval(pack(dvnzinext,.true.)),maxval(pack(dvnzinext,.true.))
-        write(*,*) 'Min/max values for dTni:  ',minval(pack(dTninext,.true.)),maxval(pack(dTninext,.true.))
+        print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+        print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+        print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+        print *, 'Min/max values for dvyi:  ',minval(dvnrhoinext),maxval(dvnrhoinext)
+        print *, 'Min/max values for dvnzi:  ',minval(dvnzinext),maxval(dvnzinext)
+        print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
       end if
 
 
       !ROTATE VECTORS INTO X1 X2 DIRECTIONS (Need to include unit vectors with grid structure)
       if (myid==0) then
-        write(*,*) 'Rotating vectors for date:  ',ymdtmp,' ',UTsectmp
+        print *, 'Rotating vectors for date:  ',ymdtmp,' ',UTsectmp
       end if
 
       dvn1iprev=dvn1inext   !save the old data
@@ -845,13 +845,13 @@ contains
 
       !MORE DIAGNOSTICS
       if (myid==lid/2) then
-        write(*,*) 'Min/max values for dnOi:  ',minval(pack(dnOinext,.true.)),maxval(pack(dnOinext,.true.))
-        write(*,*) 'Min/max values for dnN2i:  ',minval(pack(dnN2inext,.true.)),maxval(pack(dnN2inext,.true.))
-        write(*,*) 'Min/max values for dnO2i:  ',minval(pack(dnO2inext,.true.)),maxval(pack(dnO2inext,.true.))
-        write(*,*) 'Min/max values for dvn1i:  ',minval(pack(dvn1inext,.true.)),maxval(pack(dvn1inext,.true.))
-        write(*,*) 'Min/max values for dvn2i:  ',minval(pack(dvn2inext,.true.)),maxval(pack(dvn2inext,.true.))
-        write(*,*) 'Min/max values for dvn3i:  ',minval(pack(dvn3inext,.true.)),maxval(pack(dvn3inext,.true.))
-        write(*,*) 'Min/max values for dTni:  ',minval(pack(dTninext,.true.)),maxval(pack(dTninext,.true.))
+        print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+        print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+        print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+        print *, 'Min/max values for dvn1i:  ',minval(dvn1inext),maxval(dvn1inext)
+        print *, 'Min/max values for dvn2i:  ',minval(dvn2inext),maxval(dvn2inext)
+        print *, 'Min/max values for dvn3i:  ',minval(dvn3inext),maxval(dvn3inext)
+        print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
       end if
   
 
@@ -897,14 +897,14 @@ contains
 
     !SOME BASIC DIAGNOSTICS
     if (myid==lid/2) then
-      write(*,*) 'tprev,t,tnext:  ',tprev,t+dt/2d0,tnext
-      write(*,*) 'Min/max values for dnOinow:  ',minval(pack(dnOinow,.true.)),maxval(pack(dnOinow,.true.))
-      write(*,*) 'Min/max values for dnN2inow:  ',minval(pack(dnN2inow,.true.)),maxval(pack(dnN2inow,.true.))
-      write(*,*) 'Min/max values for dnO2inow:  ',minval(pack(dnO2inow,.true.)),maxval(pack(dnO2inow,.true.))
-      write(*,*) 'Min/max values for dvn1inow:  ',minval(pack(dvn1inow,.true.)),maxval(pack(dvn1inow,.true.))
-      write(*,*) 'Min/max values for dvn2inow:  ',minval(pack(dvn2inow,.true.)),maxval(pack(dvn2inow,.true.))
-      write(*,*) 'Min/max values for dvn3inow:  ',minval(pack(dvn3inow,.true.)),maxval(pack(dvn3inow,.true.))
-      write(*,*) 'Min/max values for dTninow:  ',minval(pack(dTninow,.true.)),maxval(pack(dTninow,.true.))
+      print *, 'tprev,t,tnext:  ',tprev,t+dt/2d0,tnext
+      print *, 'Min/max values for dnOinow:  ',minval(dnOinow),maxval(dnOinow)
+      print *, 'Min/max values for dnN2inow:  ',minval(dnN2inow),maxval(dnN2inow)
+      print *, 'Min/max values for dnO2inow:  ',minval(dnO2inow),maxval(dnO2inow)
+      print *, 'Min/max values for dvn1inow:  ',minval(dvn1inow),maxval(dvn1inow)
+      print *, 'Min/max values for dvn2inow:  ',minval(dvn2inow),maxval(dvn2inow)
+      print *, 'Min/max values for dvn3inow:  ',minval(dvn3inow),maxval(dvn3inow)
+      print *, 'Min/max values for dTninow:  ',minval(dTninow),maxval(dTninow)
     end if
 
 
