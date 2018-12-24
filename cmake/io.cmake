@@ -9,9 +9,21 @@ function(iofun USEHDF5)
   if(USEHDF5)
     find_package(HDF5 REQUIRED COMPONENTS Fortran Fortran_HL)
 
-    add_library(hdf5oo vendor/hdf5/hdf5_interface.f90)
-    target_include_directories(hdf5oo PRIVATE ${HDF5_INCLUDE_DIRS} ${HDF5_Fortran_INCLUDE_DIRS})
-    target_link_libraries(hdf5oo PRIVATE ${HDF5_Fortran_LIBRARIES} ${HDF5_Fortran_HL_LIBRARIES})
+    include(FetchContent)
+
+    FetchContent_Declare(oohdf5
+      GIT_REPOSITORY https://github.com/scivision/oo_hdf5_fortran.git
+      GIT_TAG d98b846
+    )
+
+
+    FetchContent_GetProperties(oohdf5)
+
+    if(NOT oohdf5_POPULATED)
+      FetchContent_Populate(oohdf5)
+      # builds under bin/_deps/oodfh5/
+      add_subdirectory(${oohdf5_SOURCE_DIR} ${oohdf5_BINARY_DIR})
+    endif()
 
     target_sources(io PRIVATE io/writeHDF5.f90 io/readHDF5.f90)
     target_link_libraries(io PRIVATE hdf5oo)
