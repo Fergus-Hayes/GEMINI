@@ -96,7 +96,7 @@ call bcast_send(Tsall,tagTs,Ts)
 call cpu_time(tfin)
 print *, 'Done sending ICs to workers...  CPU elapsed time:  ',tfin-tstart
 
-end subroutine input_root_mpi
+end procedure input_root_mpi
 
 
 end submodule readraw
