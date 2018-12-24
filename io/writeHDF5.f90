@@ -188,33 +188,33 @@ else
   call h5f%add('iverall', reshape(iverall,[lx3all,lwave,lx2],order=[3,2,1]))
 end if
 
+call h5f%finalize()
+
 end procedure output_aur_root
 
 
 module procedure output_magfields
+!! A BASIC WRAPPER FOR THE ROOT AND WORKER OUTPUT FUNCTIONS BOTH ROOT AND WORKERS CALL THIS PROCEDURE TO GENERATE
+!! MAGNETIC FIELD OUTPUT FILES,  WE ASSUME THE ROOT PROCESS HAS ALREADY REDUCED THE MAGNETIC FIELD DATA
 
-!------------------------------------------------------------
-!-------A BASIC WRAPPER FOR THE ROOT AND WORKER OUTPUT FUNCTIONS
-!-------BOTH ROOT AND WORKERS CALL THIS PROCEDURE TO GENERATE
-!-------MAGNETIC FIELD OUTPUT FILES,  WE ASSUME THE ROOT PROCESS
-!-------HAS ALREADY REDUCED THE MAGNETIC FIELD DATA
-!------------------------------------------------------------
-
-
-character(:), allocatable :: outdir_composite, filenamefull
-integer :: u
+character(:), allocatable :: outdir_composite, filenamefull, h5fn
 
 
 !FORM THE INPUT FILE NAME
 outdir_composite=outdir//'/magfields/'
 filenamefull=date_filename(outdir_composite,ymd,UTsec)
-print *, '  Output file name (magnetic fields):  ',filenamefull
-open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')
+print *, '  Output file name (magnetic fields):  ', h5fn
+
+call h5f%initialize(h5fn, status='new', action='w', comp_lvl=1)
 
 
-!DUMP THE OUTPUT DATA
-write(u) Br,Btheta,Bphi 
-close(u)
+!> DUMP THE OUTPUT DATA
+call h5f%add('Br', Br)
+call h5f%add('Btheta',Btheta)
+call h5f%add('Bphi', Bphi) 
+
+call h5f%finalize()
+
 end procedure output_magfields
 
 end submodule writehdf5
