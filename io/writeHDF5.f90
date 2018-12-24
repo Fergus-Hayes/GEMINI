@@ -198,11 +198,12 @@ module procedure output_magfields
 !! MAGNETIC FIELD OUTPUT FILES,  WE ASSUME THE ROOT PROCESS HAS ALREADY REDUCED THE MAGNETIC FIELD DATA
 
 character(:), allocatable :: outdir_composite, filenamefull, h5fn
-
+type(hdf5_file) :: h5f
 
 !FORM THE INPUT FILE NAME
 outdir_composite=outdir//'/magfields/'
 filenamefull=date_filename(outdir_composite,ymd,UTsec)
+h5fn = filenamefull(1:len(filenamefull)-4)//'.h5'
 print *, '  Output file name (magnetic fields):  ', h5fn
 
 call h5f%initialize(h5fn, status='new', action='w', comp_lvl=1)
