@@ -42,6 +42,7 @@ if(IntelPar IN_LIST SCALAPACK_FIND_COMPONENTS)
   if(SCALAPACK_LIBRARY)
     set(SCALAPACK_IntelPar_FOUND true)
   endif()
+
 elseif(IntelSeq IN_LIST SCALAPACK_FIND_COMPONENTS)
 
   mkl_scala(mkl_scalapack_lp64 mkl_intel_lp64 mkl_sequential mkl_core mkl_blacs_intelmpi_lp64)
@@ -76,6 +77,7 @@ elseif(MPICH IN_LIST SCALAPACK_FIND_COMPONENTS)
   if(SCALAPACK_LIBRARY)
     set(SCALAPACK_MPICH_FOUND true)
   endif()
+
 endif()
 
 include(FindPackageHandleStandardArgs)
@@ -86,9 +88,7 @@ find_package_handle_standard_args(
 
 if(SCALAPACK_FOUND)
   set(SCALAPACK_LIBRARIES ${SCALAPACK_LIBRARY})
-  if(BLACS_FOUND)
-    list(APPEND SCALAPACK_LIBRARIES ${BLACS_LIBRARY})
-  endif()
 endif()
 
 mark_as_advanced(SCALAPACK_LIBRARY)
+

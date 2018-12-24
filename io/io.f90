@@ -1,8 +1,9 @@
 module io
 
-!HANDLES INPUT AND OUTPUT OF PLASMA STATE PARAMETERS (NOT GRID INPUTS)
-use, intrinsic :: iso_fortran_env, only: stderr=>error_unit
-use phys_consts, only : kB,ms,pi,lsp, wp
+!! HANDLES INPUT AND OUTPUT OF PLASMA STATE PARAMETERS (NOT GRID INPUTS)
+use, intrinsic :: iso_fortran_env, only: stderr=>error_unit, compiler_version, compiler_options
+use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_value, ieee_quiet_nan
+use phys_consts, only : kB,ms,pi,lsp,wp,lwave
 use fsutils, only: expanduser
 use calculus
 use mpimod
@@ -11,32 +12,54 @@ use grid, only : gridflag,flagswap,lx1,lx2,lx3,lx3all
 implicit none
 
 interface
-  module subroutine output_root_stream_mpi(outdir,flagoutput,ymd,UTsec,vs2,vs3,ns,vs1,Ts,Phiall,J1,J2,J3)
-    character(*), intent(in) :: outdir
-    integer, intent(in) :: flagoutput
+module subroutine output_root_stream_mpi(outdir,flagoutput,ymd,UTsec,vs2,vs3,ns,vs1,Ts,Phiall,J1,J2,J3)
+character(*), intent(in) :: outdir
+integer, intent(in) :: flagoutput
 
-    integer, dimension(3), intent(in) :: ymd
-    real(wp), intent(in) :: UTsec
-    real(wp), dimension(-1:,-1:,-1:,:), intent(in) :: vs2,vs3,ns,vs1,Ts    
+integer, dimension(3), intent(in) :: ymd
+real(wp), intent(in) :: UTsec
+real(wp), dimension(-1:,-1:,-1:,:), intent(in) :: vs2,vs3,ns,vs1,Ts    
 
-    real(wp), dimension(:,:,:), intent(in) :: Phiall
-    real(wp), dimension(:,:,:), intent(in) :: J1,J2,J3
-  end subroutine output_root_stream_mpi
+real(wp), dimension(:,:,:), intent(in) :: Phiall
+real(wp), dimension(:,:,:), intent(in) :: J1,J2,J3
+end subroutine output_root_stream_mpi
 
-  module subroutine output_magfields(outdir,ymd,UTsec,Br,Btheta,Bphi)
-    character(*), intent(in) :: outdir
-    integer, intent(in) :: ymd(3)
-    real(wp), intent(in) :: UTsec
-    real(wp), dimension(:), intent(in)  :: Br,Btheta,Bphi
-  end subroutine output_magfields
+module subroutine output_magfields(outdir,ymd,UTsec,Br,Btheta,Bphi)
+character(*), intent(in) :: outdir
+integer, intent(in) :: ymd(3)
+real(wp), intent(in) :: UTsec
+real(wp), dimension(:), intent(in)  :: Br,Btheta,Bphi
+end subroutine output_magfields
+
+module subroutine output_aur(outdir,flagglow,ymd,UTsec,iver)
+character(*), intent(in) :: outdir
+integer, intent(in) :: flagglow
+
+integer, dimension(3), intent(in) :: ymd
+real(wp), intent(in) :: UTsec
+
+real(wp), dimension(:,:,:), intent(in) :: iver
+end subroutine output_aur
+
+module subroutine output_aur_workers(iver)
+real(wp), dimension(:,:,:), intent(in) :: iver
+end subroutine output_aur_workers
+
+module subroutine output_aur_root(outdir,flagglow,ymd,UTsec,iver)
+character(*), intent(in) :: outdir
+integer, intent(in) :: flagglow, ymd(3)
+real(wp), intent(in) :: UTsec
+real(wp), dimension(:,:,:), intent(in) :: iver
+end subroutine output_aur_root
 
 end interface
 
 
 
 
-!NONE OF THESE VARIABLES SHOULD BE ACCESSED BY PROCEDURES OUTSIDE THIS MODULE
-character(:), allocatable, private :: indatfile                    !initial condition data files from input configuration file
+!> NONE OF THESE VARIABLES SHOULD BE ACCESSED BY PROCEDURES OUTSIDE THIS MODULE
+character(:), allocatable, private :: indatfile                    
+!! initial condition data files from input configuration file
 
 contains
 
@@ -44,12 +67,8 @@ contains
 subroutine read_configfile(infile,ymd,UTsec0,tdur,dtout,activ,tcfl,Teinf,potsolve,flagperiodic, &
                  flagoutput,flagcap,indatsize,indatgrid,flagdneu,interptype, &
                  sourcemlat,sourcemlon,dtneu,drhon,dzn,sourcedir,flagprecfile,dtprec,precdir, &
-                 flagE0file,dtE0,E0dir)
-
-!------------------------------------------------------------
-!-------READS THE INPUT CONFIGURAITON FILE ANDE ASSIGNS
-!-------VARIABLES FOR FILENAMES, SIZES, ETC.
-!------------------------------------------------------------
+                 flagE0file,dtE0,E0dir,flagglow,dtglow,dtglowout)
+!! READS THE INPUT CONFIGURAITON FILE ANDE ASSIGNS VARIABLES FOR FILENAMES, SIZES, ETC.
 
 character(*), intent(in) :: infile
 integer, dimension(3), intent(out):: ymd
@@ -70,11 +89,16 @@ real(wp), intent(out) :: dtprec
 character(:), allocatable, intent(out) :: indatsize,indatgrid, sourcedir, precdir, E0dir
 integer, intent(out) :: flagE0file
 real(wp), intent(out) :: dtE0
+integer, intent(out) :: flagglow
+real(wp), intent(out) :: dtglow, dtglowout
 
 character(256) :: buf
 integer :: u
+real(wp) :: NaN
 
-!READ CONFIG.DAT FILE FOR THIS SIMULATION
+NaN = ieee_value(0._wp, ieee_quiet_nan)
+
+!> READ CONFIG.DAT FILE FOR THIS SIMULATION
 open(newunit=u, file=infile, status='old', action='read')
 read(u,*) ymd(3),ymd(2),ymd(1)
 read(u,*) UTsec0
@@ -95,7 +119,7 @@ indatgrid = expanduser(buf)
 read(u,'(a256)') buf
 indatfile = expanduser(buf)
 
-!PRINT SOME DIAGNOSIC INFO FROM ROOT
+!> PRINT SOME DIAGNOSIC INFO FROM ROOT
 if (myid==0) then
   print '(A,I6,A1,I0.2,A1,I0.2)', infile//': simulation ymd is:  ',ymd(1),'/',ymd(2),'/',ymd(3)
   print '(A51,F10.3)', 'start time is:  ',UTsec0
@@ -108,7 +132,7 @@ if (myid==0) then
 end if
 
 
-!NEUTRAL PERTURBATION INPUT INFORMATION
+!> NEUTRAL PERTURBATION INPUT INFORMATION
 read(u,*) flagdneu
 if( flagdneu==1) then
   read(u,*) interptype
@@ -132,7 +156,7 @@ else
   sourcedir=''
 end if
 
-!PRECIPITATION FILE INPUT INFORMATION
+!> PRECIPITATION FILE INPUT INFORMATION
 read(u,*) flagprecfile
 if (flagprecfile==1) then    
 !! get the location of the precipitation input files
@@ -169,6 +193,21 @@ else                         !just set results to something
   E0dir=''
 end if
 
+!> GLOW ELECTRON TRANSPORT INFORMATION
+read(u,*) flagglow
+if (flagglow==1) then
+  read(u,*) dtglow
+  read(u,*) dtglowout
+  if (myid == 0) then
+    print *, 'GLOW enabled for auroral emission calculations.'
+    print *, 'GLOW electron transport calculation cadence (s): ', dtglow
+    print *, 'GLOW auroral emission output cadence (s): ', dtglowout
+  end if
+else
+  dtglow=NaN
+  dtglowout=NaN
+end if
+
 close(u)
 end subroutine read_configfile
 
@@ -191,31 +230,31 @@ integer :: ierr
 call execute_command_line('mkdir -pv '//outdir//'/inputs', exitstat=ierr)
 if (ierr /= 0) error stop 'error creating output directory' 
 
-call execute_command_line('cp -rv '//infile//' '//outdir//'/inputs/', exitstat=ierr)
+call execute_command_line('cp -r '//infile//' '//outdir//'/inputs/', exitstat=ierr)
 if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -rv '//indatsize//' '//outdir//'/inputs/', exitstat=ierr)
+call execute_command_line('cp -r '//indatsize//' '//outdir//'/inputs/', exitstat=ierr)
 if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -rv '//indatgrid//' '//outdir//'/inputs/', exitstat=ierr)
+call execute_command_line('cp -r '//indatgrid//' '//outdir//'/inputs/', exitstat=ierr)
 if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -rv '//indatfile//' '//outdir//'/inputs/', exitstat=ierr)
+call execute_command_line('cp -r '//indatfile//' '//outdir//'/inputs/', exitstat=ierr)
 if (ierr /= 0) error stop 'error copying input parameters to output directory' 
 
 !MAKE COPIES OF THE INPUT DATA, AS APPROPRIATE
 if (flagdneu/=0) then
   call execute_command_line('mkdir -pv '//outdir//'/inputs/neutral_inputs')
-  call execute_command_line('cp -rv '//sourcedir//'/* '//outdir//'/inputs/neutral_inputs/', exitstat=ierr)
+  call execute_command_line('cp -r '//sourcedir//'/* '//outdir//'/inputs/neutral_inputs/', exitstat=ierr)
 end if
 if (ierr /= 0) error stop 'error copying neutral input parameters to output directory' 
 
 if (flagprecfile/=0) then
   call execute_command_line('mkdir -pv '//outdir//'/inputs/prec_inputs')
-  call execute_command_line('cp -rv '//precdir//'/* '//outdir//'/inputs/prec_inputs/', exitstat=ierr)
+  call execute_command_line('cp -r '//precdir//'/* '//outdir//'/inputs/prec_inputs/', exitstat=ierr)
 end if
 if (ierr /= 0) error stop 'error copying input precipitation parameters to output directory' 
 
 if (flagE0file/=0) then
   call execute_command_line('mkdir -pv '//outdir//'/inputs/Efield_inputs')
-  call execute_command_line('cp -rv '//E0dir//'/* '//outdir//'/inputs/Efield_inputs/', exitstat=ierr)
+  call execute_command_line('cp -r '//E0dir//'/* '//outdir//'/inputs/Efield_inputs/', exitstat=ierr)
 end if
 if (ierr /= 0) error stop 'error copying input energy parameters to output directory' 
 
@@ -223,7 +262,7 @@ if (ierr /= 0) error stop 'error copying input energy parameters to output direc
 ! this can break on POSIX due to copying files in endless loop, commended out - MH
 !call execute_command_line('mkdir -pv '//outdir//'/inputs/source/', exitstat=ierr)
 !if (ierr /= 0) error stop 'error creating input source parameter output directory'
-!call execute_command_line('cp -rv ./* '//outdir//'/inputs/source/', exitstat=ierr)
+!call execute_command_line('cp -r ./* '//outdir//'/inputs/source/', exitstat=ierr)
 !if (ierr /= 0) error stop 'error creating input source parameter output directory' 
 
 call gitlog(outdir//'/gitrev.log')
@@ -247,6 +286,20 @@ call execute_command_line('mkdir -pv '//outdir//'/magfields/input/')
 call execute_command_line('cp -v '//fieldpointfile//' '//outdir//'/magfields/input/magfieldpoints.dat')
 
 end subroutine create_outdir_mag
+
+
+subroutine create_outdir_aur(outdir)
+
+!------------------------------------------------------------
+!-------CREATES OUTPUT DIRECTORY FOR MAGNETIC FIELD CALCULATIONS
+!------------------------------------------------------------
+
+character(*), intent(in) :: outdir
+
+!NOTE HERE THAT WE INTERPRET OUTDIR AS THE BASE DIRECTORY CONTAINING SIMULATION OUTPUT
+call execute_command_line('mkdir -pv '//outdir//'/aurmaps/')
+
+end subroutine create_outdir_aur
 
 
 subroutine input_plasma(x1,x2,x3all,indatsize,ns,vs1,Ts)
@@ -304,7 +357,7 @@ real(wp), dimension(-1:,-1:,-1:,:), intent(out) :: ns,vs1,Ts
 
 integer :: lx1,lx2,lx3,lx3all,isp
 
-real(wp), dimension(-1:size(x1,1)-2,-1:size(x2,1)-2,-1:size(x3all,1)-2,1:lsp) :: nsall,vs1all,Tsall
+real(wp), dimension(-1:size(x1,1)-2,-1:size(x2,1)-2,-1:size(x3all,1)-2,1:lsp) :: nsall, vs1all, Tsall
 real(wp), dimension(:,:,:,:), allocatable :: statetmp
 integer :: lx1in,lx2in,lx3in,u
 real(wp) :: tin
@@ -312,7 +365,12 @@ real(wp), dimension(3) :: ymdtmp
 
 real(wp) :: tstart,tfin    
 
-!SYSTEM SIZES
+!> so that random values (including NaN) don't show up in Ghost cells
+nsall = 0._wp
+vs1all= 0._wp
+Tsall = 0._wp
+
+!> SYSTEM SIZES
 lx1=size(ns,1)-4
 lx2=size(ns,2)-4
 lx3=size(ns,3)-4
@@ -347,9 +405,9 @@ if (flagswap/=1) then
   read(u) Tsall(1:lx1,1:lx2,1:lx3all,1:lsp)
 else
   allocate(statetmp(lx1,lx3all,lx2,lsp))
+  !print *, shape(statetmp),shape(nsall)
+
   read(u) statetmp
-  
-  print *, shape(statetmp),shape(nsall)
   nsall(1:lx1,1:lx2,1:lx3all,1:lsp)=reshape(statetmp,[lx1,lx2,lx3all,lsp],order=[1,3,2,4])
   read(u) statetmp
   vs1all(1:lx1,1:lx2,1:lx3all,1:lsp)=reshape(statetmp,[lx1,lx2,lx3all,lsp],order=[1,3,2,4])
@@ -362,15 +420,15 @@ close(u)
 print *, 'Done gathering input...'
 
 
-!USER SUPPLIED FUNCTION TO TAKE A REFERENCE PROFILE AND CREATE INITIAL CONDITIONS FOR ENTIRE GRID.  ASSUMING THAT THE
-!INPUT DATA ARE EXACTLY THE CORRECT SIZE (AS IS THE CASE WITH FILE INPUT) THIS IS NOW SUPERFLUOUS
+!> USER SUPPLIED FUNCTION TO TAKE A REFERENCE PROFILE AND CREATE INITIAL CONDITIONS FOR ENTIRE GRID.  
+!> ASSUMING THAT THE INPUT DATA ARE EXACTLY THE CORRECT SIZE (AS IS THE CASE WITH FILE INPUT) THIS IS NOW SUPERFLUOUS
 print *, 'Done setting initial conditions...'
-print *, 'Min/max input density:  ',minval(pack(nsall(:,:,:,7),.true.)),maxval(pack(nsall(:,:,:,7),.true.))
-print *, 'Min/max input velocity:  ',minval(pack(vs1all(:,:,:,:),.true.)),maxval(pack(vs1all(:,:,:,:),.true.))
-print *, 'Min/max input temperature:  ',minval(pack(Tsall(:,:,:,:),.true.)),maxval(pack(Tsall(:,:,:,:),.true.))
+print *, 'Min/max input density:  ',     minval(nsall(:,:,:,7)),  maxval(nsall(:,:,:,7))
+print *, 'Min/max input velocity:  ',    minval(vs1all(:,:,:,:)), maxval(vs1all(:,:,:,:))
+print *, 'Min/max input temperature:  ', minval(Tsall(:,:,:,:)),  maxval(Tsall(:,:,:,:))
 
 
-!ROOT BROADCASTS IC DATA TO WORKERS
+!> ROOT BROADCASTS IC DATA TO WORKERS
 call cpu_time(tstart)
 call bcast_send(nsall,tagns,ns)
 call bcast_send(vs1all,tagvs1,vs1)
@@ -583,10 +641,7 @@ end subroutine output_workers_mpi
 
 
 pure function date_filename(outdir,ymd,UTsec)
-
-!------------------------------------------------------------
-!-------GENERATE A FILENAME STRING OUT OF A GIVEN DATE/TIME
-!------------------------------------------------------------
+!! GENERATE A FILENAME STRING OUT OF A GIVEN DATE/TIME
 
 character(*), intent(in) :: outdir
 integer, intent(in) :: ymd(3)

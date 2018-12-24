@@ -168,6 +168,63 @@ close(u)
 end procedure output_root_stream_mpi
 
 
+module procedure output_aur
+!! A BASIC WRAPPER FOR THE ROOT AND WORKER OUTPUT FUNCTIONS BOTH ROOT AND WORKERS CALL THIS PROCEDURE
+!! SO UNALLOCATED VARIABLES MUST BE DECLARED AS ALLOCATABLE, INTENT(INOUT)
+
+if (myid/=0) then
+  call output_aur_workers(iver)
+else
+  call output_aur_root(outdir,flagglow,ymd,UTsec,iver)
+end if
+
+end procedure output_aur
+
+
+module procedure output_aur_workers
+!! SEND COMPLETE DATA FROM WORKERS TO ROOT PROCESS FOR OUTPUT.  NO GHOST CELLS (I HOPE)
+
+real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+
+ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+
+!------- SEND AURORA PARAMETERS TO ROOT
+call gather_send(ivertmp,tagAur)
+
+end procedure output_aur_workers
+
+
+module procedure output_aur_root
+!! COLLECT COMPLETE DATA FROM WORKERS AND PROCESS FOR OUTPUT.  
+!! NO GHOST CELLS (I HOPE)
+
+real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+real(wp), dimension(1:lx2,1:lwave,1:lx3all) :: iverall
+
+character(:), allocatable :: outdir_composite, filenamefull
+integer :: u
+
+ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+
+call gather_recv(ivertmp,tagAur,iverall)
+
+!FORM THE INPUT FILE NAME
+outdir_composite=outdir//'/aurmaps/'
+filenamefull=date_filename(outdir_composite,ymd,UTsec)
+
+print *, '  Output file name (auroral maps):  ',filenamefull
+open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')
+
+if(flagswap/=1) then
+  write(u) reshape(iverall,[lx2,lx3all,lwave],order=[1,3,2])
+else
+  write(u) reshape(iverall,[lx3all,lwave,lx2],order=[3,2,1])
+end if
+
+close(u)
+end procedure output_aur_root
+
+
 module procedure output_magfields
 
 !------------------------------------------------------------

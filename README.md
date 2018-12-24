@@ -111,11 +111,12 @@ This test runs a short demo, taking about 2-5 minutes on a typical Mac / Linux l
    ```
 
 If you get errors about libraries not found or it's using the wrong compiler, see the `build_.sh` scripts for examples of how to easily tell CMake to use customer library and compiler locations.
+
 (OPTIONAL HDF5):
 as above, substituting:
 
 ```sh
-cmake -DUSEHDF5=yes ..
+cmake -DUSEHDF=yes ..
 ```
 
 HDF5 requires 

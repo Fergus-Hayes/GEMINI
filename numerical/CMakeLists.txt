@@ -23,9 +23,11 @@ target_link_libraries(interp PRIVATE const)
 target_compile_options(interp PRIVATE ${FFLAGS})
 # set_target_properties(interp PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_SOURCE_DIR}/objects)
 
+
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
   include(interpolation/test_interp.cmake)
 endif()
+
 
 add_library(mpimod mpimod/mpimod.F90)
 target_link_libraries(mpimod PRIVATE const MPI::MPI_Fortran)
@@ -37,7 +39,6 @@ add_library(grid grid/grid.f90)
 target_link_libraries(grid PUBLIC const mpimod MPI::MPI_Fortran) # PUBLIC necessary for ifort, even with MPI target
 target_compile_options(grid PRIVATE ${FFLAGS})
 # set_target_properties(grid PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_SOURCE_DIR}/objects)
-
 
 add_library(calculus calculus/calculus.f90)
 target_link_libraries(calculus PRIVATE grid)
@@ -57,13 +58,12 @@ else()
   target_compile_definitions(diffusion PRIVATE REALBITS=${realbits})
   target_link_libraries(diffusion PRIVATE ${LAPACK_LIBRARIES})
 endif()
-
 # set_target_properties(diffusion PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_SOURCE_DIR}/objects)
-
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
   include(test_diffusion.cmake)
 endif()
+
 # -- more libs
 
 add_library(advec advection/advec_mpi.f90)
