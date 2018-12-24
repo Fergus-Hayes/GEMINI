@@ -65,16 +65,22 @@ end if
 call h5f%initialize(h5fn, status='old', action='r')
 
 if (flagswap/=1) then
-  call h5f%get('nsall', nsall(1:lx1,1:lx2,1:lx3all,1:lsp))
-  call h5f%get('vs1all', vs1all(1:lx1,1:lx2,1:lx3all,1:lsp))
-  call h5f%get('Tsall', Tsall(1:lx1,1:lx2,1:lx3all,1:lsp))
+  call h5f%get('nsall', statetmp)
+  if(any(shape(statetmp) /= [lx1,lx2,lx3all,lsp])) error stop 'wrong dimensions read from '//h5fn
+  nsall(1:lx1,1:lx2,1:lx3all,1:lsp) = statetmp
+
+  call h5f%get('vs1all', statetmp)
+  vs1all(1:lx1,1:lx2,1:lx3all,1:lsp) = statetmp
+
+  call h5f%get('Tsall', statetmp)
+  Tsall(1:lx1,1:lx2,1:lx3all,1:lsp) = statetmp
 else
-  !allocate(statetmp(lx1,lx3all,lx2,lsp))
   !print *, shape(statetmp),shape(nsall)
 
   call h5f%get('nsall', statetmp)
+  if(any(shape(statetmp) /= [lx1,lx3all,lx2,lsp])) error stop 'wrong dimensions read from '//h5fn
   nsall(1:lx1,1:lx2,1:lx3all,1:lsp)=reshape(statetmp,[lx1,lx2,lx3all,lsp],order=[1,3,2,4])
-  
+
   call h5f%get('vs1all', statetmp)
   vs1all(1:lx1,1:lx2,1:lx3all,1:lsp)=reshape(statetmp,[lx1,lx2,lx3all,lsp],order=[1,3,2,4])
 
@@ -83,6 +89,8 @@ else
   !! permute the dimensions so that 2D runs are parallelized
 
 end if
+
+call h5f%finalize()
 
 print *, 'Done gathering input...'
 
