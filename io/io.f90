@@ -12,6 +12,22 @@ use grid, only : gridflag,flagswap,lx1,lx2,lx3,lx3all
 implicit none
 
 interface
+module subroutine create_outdir(outdir,infile,indatsize,indatgrid,flagdneu,sourcedir,flagprecfile,precdir,flagE0file,E0dir)
+character(*), intent(in) :: outdir, & !< command line argument output directory
+                            infile, & !< command line argument input file
+                            indatsize,indatgrid,sourcedir, precdir,E0dir
+integer, intent(in) :: flagdneu, flagprecfile, flagE0file
+end subroutine create_outdir
+
+module subroutine create_outdir_mag(outdir,fieldpointfile)
+character(*), intent(in) :: outdir
+character(*), intent(in) :: fieldpointfile
+end subroutine create_outdir_mag
+
+module subroutine create_outdir_aur(outdir)
+character(*), intent(in) :: outdir
+end subroutine create_outdir_aur
+
 module subroutine output_root_stream_mpi(outdir,flagoutput,ymd,UTsec,vs2,vs3,ns,vs1,Ts,Phiall,J1,J2,J3)
 character(*), intent(in) :: outdir
 integer, intent(in) :: flagoutput
@@ -207,96 +223,6 @@ end if
 
 close(u)
 end subroutine read_configfile
-
-
-subroutine create_outdir(outdir,infile,indatsize,indatgrid,flagdneu,sourcedir,flagprecfile,precdir,flagE0file,E0dir)
-
-!------------------------------------------------------------
-!-------CREATES OUTPUT DIRECTORY, MOVES CONFIG FILES THERE AND
-!-------GENERATES A GRID OUTPUT FILE
-!------------------------------------------------------------
-
-character(*), intent(in) :: outdir, & !command line argument output directory
-                            infile, & !command line argument input file
-                            indatsize,indatgrid,sourcedir, precdir,E0dir
-integer, intent(in) :: flagdneu, flagprecfile, flagE0file
-
-integer :: ierr
-
-!MAKE A COPY OF THE INPUT DATA IN THE OUTPUT DIRECTORY (MAYBE SHOULD COPY SOURCE CODE TOO???)
-call execute_command_line('mkdir -pv '//outdir//'/inputs', exitstat=ierr)
-if (ierr /= 0) error stop 'error creating output directory' 
-
-call execute_command_line('cp -r '//infile//' '//outdir//'/inputs/', exitstat=ierr)
-if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -r '//indatsize//' '//outdir//'/inputs/', exitstat=ierr)
-if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -r '//indatgrid//' '//outdir//'/inputs/', exitstat=ierr)
-if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-call execute_command_line('cp -r '//indatfile//' '//outdir//'/inputs/', exitstat=ierr)
-if (ierr /= 0) error stop 'error copying input parameters to output directory' 
-
-!MAKE COPIES OF THE INPUT DATA, AS APPROPRIATE
-if (flagdneu/=0) then
-  call execute_command_line('mkdir -pv '//outdir//'/inputs/neutral_inputs')
-  call execute_command_line('cp -r '//sourcedir//'/* '//outdir//'/inputs/neutral_inputs/', exitstat=ierr)
-end if
-if (ierr /= 0) error stop 'error copying neutral input parameters to output directory' 
-
-if (flagprecfile/=0) then
-  call execute_command_line('mkdir -pv '//outdir//'/inputs/prec_inputs')
-  call execute_command_line('cp -r '//precdir//'/* '//outdir//'/inputs/prec_inputs/', exitstat=ierr)
-end if
-if (ierr /= 0) error stop 'error copying input precipitation parameters to output directory' 
-
-if (flagE0file/=0) then
-  call execute_command_line('mkdir -pv '//outdir//'/inputs/Efield_inputs')
-  call execute_command_line('cp -r '//E0dir//'/* '//outdir//'/inputs/Efield_inputs/', exitstat=ierr)
-end if
-if (ierr /= 0) error stop 'error copying input energy parameters to output directory' 
-
-!NOW STORE THE VERSIONS/COMMIT IDENTIFIER IN A FILE IN THE OUTPUT DIRECTORY
-! this can break on POSIX due to copying files in endless loop, commended out - MH
-!call execute_command_line('mkdir -pv '//outdir//'/inputs/source/', exitstat=ierr)
-!if (ierr /= 0) error stop 'error creating input source parameter output directory'
-!call execute_command_line('cp -r ./* '//outdir//'/inputs/source/', exitstat=ierr)
-!if (ierr /= 0) error stop 'error creating input source parameter output directory' 
-
-call gitlog(outdir//'/gitrev.log')
-
-call compiler_log(outdir//'/compiler.log')
-
-end subroutine create_outdir
-
-
-subroutine create_outdir_mag(outdir,fieldpointfile)
-
-!! CREATES OUTPUT DIRECTORY FOR MAGNETIC FIELD CALCULATIONS
-
-character(*), intent(in) :: outdir
-character(*), intent(in) :: fieldpointfile
-
-
-!NOTE HERE THAT WE INTERPRET OUTDIR AS THE BASE DIRECTORY CONTAINING SIMULATION OUTPUT
-call execute_command_line('mkdir -pv '//outdir//'/magfields/')
-call execute_command_line('mkdir -pv '//outdir//'/magfields/input/')
-call execute_command_line('cp -v '//fieldpointfile//' '//outdir//'/magfields/input/magfieldpoints.dat')
-
-end subroutine create_outdir_mag
-
-
-subroutine create_outdir_aur(outdir)
-
-!------------------------------------------------------------
-!-------CREATES OUTPUT DIRECTORY FOR MAGNETIC FIELD CALCULATIONS
-!------------------------------------------------------------
-
-character(*), intent(in) :: outdir
-
-!NOTE HERE THAT WE INTERPRET OUTDIR AS THE BASE DIRECTORY CONTAINING SIMULATION OUTPUT
-call execute_command_line('mkdir -pv '//outdir//'/aurmaps/')
-
-end subroutine create_outdir_aur
 
 
 subroutine input_plasma(x1,x2,x3all,indatsize,ns,vs1,Ts)

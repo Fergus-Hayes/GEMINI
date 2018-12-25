@@ -1,6 +1,6 @@
 # --- HDF5
 function(iofun USEHDF5)
-  add_library(io io/io.f90 io/expanduser.f90)
+  add_library(io io/io.f90 io/expanduser.f90 io/makedirs.f90)
   target_link_libraries(io PRIVATE const mpimod grid calculus)
   target_compile_definitions(io PRIVATE TRACE=${TRACE})
   target_compile_options(io PRIVATE ${FFLAGS})
