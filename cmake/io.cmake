@@ -4,6 +4,7 @@ function(iofun USEHDF5)
   target_link_libraries(io PRIVATE const mpimod grid calculus)
   target_compile_definitions(io PRIVATE TRACE=${TRACE})
   target_compile_options(io PRIVATE ${FFLAGS})
+  target_include_directories(io PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/numerical) # this line stays here
 
   if(USEHDF5)
     find_package(HDF5 REQUIRED COMPONENTS Fortran Fortran_HL)
@@ -26,8 +27,10 @@ function(iofun USEHDF5)
 
     target_sources(io PRIVATE io/writeHDF5.f90 io/readHDF5.f90)
     target_link_libraries(io PRIVATE hdf5oo)
-    target_include_directories(io PRIVATE ${oohdf5_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/numerical)
+    target_include_directories(io PRIVATE ${oohdf5_BINARY_DIR})
   else()
     target_sources(io PRIVATE io/writeraw.f90 io/readraw.f90)
   endif()
+
+
 endfunction(iofun)

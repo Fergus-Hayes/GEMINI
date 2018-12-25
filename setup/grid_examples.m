@@ -1,3 +1,5 @@
+function xg = grid_examples()
+
 %% ADD PATHS TO THE GRID GENERATION SCRIPTS
 addpath ./gridgen;
 addpath ../script_utils;
@@ -29,32 +31,22 @@ rhomax=1800;
 % sourcelat=glat;
 % sourcelong=glon;
 
-
 %% FOR USERS INFO CONVERT SOURCE LOCATION TO GEOMAG
-[sourcetheta,sourcephi]=geog2geomag(sourcelat,sourcelong);
-sourcemlat=90-sourcetheta*180/pi;
-sourcemlon=sourcephi*180/pi;
-
+%[sourcetheta,sourcephi]=geog2geomag(sourcelat,sourcelong);
+%sourcemlat=90-sourcetheta*180/pi;
+%sourcemlon=sourcephi*180/pi;
 
 %% RUN THE GRID GENERATION CODE
-if (~exist('xg'))
-    xg=makegrid_tilteddipole_3D(dtheta,dphi,lp,lq,lphi,altmin,glat,glon,gridflag);   
+xg = makegrid_tilteddipole_3D(dtheta,dphi,lp,lq,lphi,altmin,glat,glon,gridflag);   
 %    xg=makegrid_tilteddipole_nonuniform_3D(dtheta,dphi,lp,lq,lphi,altmin,glat,glon,gridflag);   
 %    xg=makegrid_tilteddipole_nonuniform_oneside_3D(dtheta,dphi,lp,lq,lphi,altmin,glat,glon,gridflag);
 %     xg=makegrid_cart_3D(xdist,lxp,ydist,lyp,I,glat,glon);
-end
 
+plotgrid(xg,flagsource,sourcelat,sourcelong,neugridtype,zmin,zmax,rhomax);
 
-ha=plotgrid(xg,flagsource,sourcelat,sourcelong,neugridtype,zmin,zmax,rhomax);
-
-
-%% RETURN PATH VARIABLES TO NORMAL
-rmpath ./gridgen;
-rmpath ../script_utils;
-
+end % function
 
 %% ADDITIONAL EXAMPLES OF GRIDS AND SOURCE LOCATIONS...
-
 
 
 % %TOHOKU

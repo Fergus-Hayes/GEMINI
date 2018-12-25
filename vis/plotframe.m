@@ -12,7 +12,7 @@ validateattributes(ymd, {'numeric'}, {'vector','numel',3}, mfilename, 'year, mon
 validateattributes(UTsec, {'numeric'}, {'scalar'}, mfilename, 'UTC second', 3)
 
 if nargin<4
-  saveplots={}  % 'png', 'eps' or {'png', 'eps'}
+  saveplots={};  % 'png', 'eps' or {'png', 'eps'}
 end
 if nargin<5
   plotfun=[];    %code will choose a plotting function if not given
@@ -73,13 +73,11 @@ end
 plotfun = grid2plotfun(plotfun, xg);
 
 %% DETERMINE OUTPUT TIME NEAREST TO THAT REQUESTED
-tnow = UTsec0+tdur;    %not date corrected, but doesn't really matter
+%tnow = UTsec0+tdur;    %not date corrected, but doesn't really matter
 [ymdend,UTsecend]=dateinc(tdur,ymd0,UTsec0);
 
 
 %% LOCATE TIME NEAREST TO THE REQUESTED DATE
-ymdprev=ymd0;
-UTsecprev=UTsec0;
 ymdnext=ymd0;
 UTsecnext=UTsec0;
 it=1;
@@ -89,6 +87,7 @@ while(datenum([ymdnext,UTsecnext/3600,0,0])<datenum([ymd,UTsec/3600,0,0]) && dat
   [ymdnext,UTsecnext]=dateinc(dtout,ymdprev,UTsecprev);
   it=it+1;
 end
+%{
 if(UTsecnext-UTsec<=UTsec-UTsecprev)   %we are closer to next frame
   ymdnow=ymdnext;
   UTsecnow=UTsecnext;
@@ -96,7 +95,7 @@ else    %closer to previous frame
   ymdnow=ymdprev;
   UTsecnow=UTsecprev;
 end
-
+%}
 
 %% LOAD THE FRAME NEAREST TO THE REQUESTED TIME
 [ne,mlatsrc,mlonsrc,xg,v1,Ti,Te,J1,v2,v3,J2,J3,filename,Phitop,ns,vs1,Ts] = loadframe(direc,ymd,UTsec,ymd0,UTsec0,tdur,dtout,flagoutput,mloc,xg);
