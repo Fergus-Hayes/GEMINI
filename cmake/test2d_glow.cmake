@@ -4,7 +4,7 @@ set(REFNAME zenodo2d_glow)
 set(REFDIR ../simulations)
 set(zenodoHash c5bbbbff3bdde85b6d7e9470bc3751a2)
 set(zenodoNumber 2520780)
-set(firstfile 20130220_18000.000001.dat)
+set(firstfile 20130220_18000.000001)
 # --- ensure reference data is available for self-test
 download_testfiles(${zenodoHash} ${zenodoNumber} ${REFNAME} ${PROJECT_SOURCE_DIR}/${REFDIR})
 

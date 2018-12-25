@@ -105,6 +105,12 @@ endfunction()
 
 function(octave_compare TESTNAME OUTDIR REFDIR REQFILE)
 
+if(USEHDF)
+  set(REQFILE ${REQFILE}.h5)
+else()
+  set(REQFILE ${REQFILE}.dat)
+endif()
+
 add_test(NAME ${TESTNAME}
   COMMAND Octave::Interpreter --eval "exit(compare_all('${CMAKE_CURRENT_BINARY_DIR}/${OUTDIR}','${CMAKE_CURRENT_SOURCE_DIR}/${REFDIR}'))"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
@@ -118,6 +124,12 @@ endfunction()
 
 
 function(matlab_compare TESTNAME OUTDIR REFDIR REQFILE)
+
+if(USEHDF)
+  set(REQFILE ${REQFILE}.h5)
+else()
+  set(REQFILE ${REQFILE}.dat)
+endif()
 
 add_test(NAME ${TESTNAME}
   COMMAND ${Matlab_MAIN_PROGRAM} -nojvm -r "exit(compare_all('${CMAKE_CURRENT_BINARY_DIR}/${OUTDIR}','${CMAKE_CURRENT_SOURCE_DIR}/${REFDIR}'))"
