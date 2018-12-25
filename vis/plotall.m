@@ -14,7 +14,7 @@ if nargin<3, plotfun=[]; end
 if nargin<4
   xg=[]; 
 else
-  validateattr(xg, {'struct'}, {'scalar'}, mfilename, 'grid structure', 4)
+  validateattributes(xg, {'struct'}, {'scalar'}, mfilename, 'grid structure', 4)
 end
 
 
