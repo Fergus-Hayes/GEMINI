@@ -2,7 +2,7 @@ function model_setup()
 cwd = fileparts(mfilename('fullpath'));
 
 simlabel='2Dtest_eq';
-outdir=[cwd,filesep,'../../../simulations/2Dtest_eq/'];
+outdir=[cwd,filesep,'../../../simulations/2Dtest_eq/inputs'];
 %% LOWRES 2D EXAMPLE FOR TESTING
 xdist=1200e3;    %eastward distance
 ydist=600e3;    %northward distance
@@ -28,7 +28,6 @@ xg = makegrid_cart_3D(xdist,lxp,ydist,lyp,I,glat,glon);
 UT=7.5;
 dmy=[2,3,2017];
 activ=[76.5,79.3,31.5];
-
 
 %% USE OLD CODE FROM MATLAB MODEL
 nmf=5e11;

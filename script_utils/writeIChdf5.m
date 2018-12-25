@@ -13,8 +13,8 @@ disp(['writing ',fn])
 
 h5w(fn, '/dmy', dmy)
 h5w(fn, '/time',time)
-h5w(fn, '/ns', ns)
-h5w(fn, '/vsx1',vsx1)
-h5w(fn, '/Ts',Ts)
+h5w(fn, '/nsall', ns)
+h5w(fn, '/vs1all',vsx1)
+h5w(fn, '/Tsall',Ts)
 
 end % function
