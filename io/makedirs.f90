@@ -75,5 +75,4 @@ call execute_command_line('mkdir -pv '//outdir//'/aurmaps/')
 end procedure create_outdir_aur
 
 
-
 end submodule makedirs

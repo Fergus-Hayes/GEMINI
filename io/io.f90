@@ -294,7 +294,6 @@ subroutine input_workers_currents(J1,J2,J3)
 
 real(wp), dimension(:,:,:), intent(out) :: J1,J2,J3
 
-
 !> ALL WE HAVE TO DO IS WAIT TO RECEIVE OUR PIECE OF DATA FROM ROOT
 call bcast_recv(J1,tagJ1)
 call bcast_recv(J2,tagJ2)
