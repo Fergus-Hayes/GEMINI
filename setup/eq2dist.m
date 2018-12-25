@@ -36,14 +36,16 @@ if (~isfin_Ts)
 end
 
 %% WRITE GRID
-outdir = [eqdir,'../input/',simID];
-writegrid(xg,outdir);
 dmy=[ymdend(3),ymdend(2),ymdend(1)];
 
+outdir = [eqdir,'../input/',simID];
+
 if usehdf
-  writeHDF5(dmy,UTsecend,nsi,vs1i,Tsi,outdir,simID);
+  writeIChdf5(dmy,UTsecend,nsi,vs1i,Tsi,outdir,simID);
+  writegridhdf5(xg,outdir);
 else
-  writeraw(dmy,UTsecend,nsi,vs1i,Tsi,outdir,simID);
+  writegridraw(xg,outdir);
+  writeICraw(dmy,UTsecend,nsi,vs1i,Tsi,outdir,simID);
 end % if
 
 end %function eq2dist

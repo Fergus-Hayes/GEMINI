@@ -192,4 +192,4 @@ if abs(xg.r(1,1,1)-xg.r(xg.lx(1),1,1))<1         %closed dipole grid
     end
 end
 
-end
+end % function

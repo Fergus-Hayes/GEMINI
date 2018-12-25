@@ -1,12 +1,5 @@
 function xgf=makegrid_cart_3D(xdist,lxp,ydist,lyp,I,glat,glon)
 
-%function xg=makegrid_cart_3D(xmin,xmax,lx,ymin,ymax,ly,I,glat,glon)
-
-
-%PATH TO GEOMAGNETIC CONVERSION ROUTINES
-%addpath ../../script_utils;
-
-
 %ADD IN GHOST CELLS (Z WILL BE HANDLED LATER)
 lx=lxp+4;
 ly=lyp+4;
@@ -261,8 +254,4 @@ xgf.x=xgf.x(inds1,inds2,inds3);
 xgf.y=xgf.y(inds1,inds2,inds3);
 xgf.z=xgf.z(inds1,inds2,inds3);
 
-
-%RESET PATH
-%rmpath ../../script_utils;
-
-end
+end % function

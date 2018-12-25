@@ -84,6 +84,10 @@ end
 
 %% SAVE THIS DATA TO APPROPRIATE FILES - LEAVE THE SPATIAL AND TEMPORAL INTERPOLATION TO THE
 % FORTRAN CODE IN CASE DIFFERENT GRIDS NEED TO BE TRIED.  THE EFIELD DATA DO NOT NEED TO BE SMOOTHED.
+
+if usehdf, error('TODO: HDF5 output'), end
+
+
 filename=[outdir,filesep,'simsize.dat'];
 fid=fopen(filename,'w');
 fwrite(fid,llon,'integer*4');
