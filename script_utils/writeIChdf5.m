@@ -6,9 +6,13 @@ function writeIChdf5(dmy,time,ns,vsx1,Ts,outdir,outID)
 % INPUT ARRAYS SHOULD BE TRIMMED TO THE CORRECT SIZE
 % (I.E. THEY SHOULD *NOT INCLUDE GHOST CELLS*
 outdir = resolvepath(outdir);
-mkdir(outdir)
+if ~exist(outdir,'dir')
+  mkdir(outdir)
+end
 fn = [outdir,filesep,outID,'_ICs.h5'];
-delete(fn)
+if exist(fn,'file')
+  delete(fn)
+end
 disp(['writing ',fn])
 
 h5w(fn, '/dmy', dmy)

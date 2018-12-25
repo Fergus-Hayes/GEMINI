@@ -18,7 +18,7 @@ usehdf = true;
 addpath([cwd, filesep, '..', filesep,'..',filesep,'script_utils']);
 addpath([cwd, filesep, '..', filesep,'..',filesep,'setup']);
 addpath([cwd, filesep, '..', filesep,'..',filesep,'setup',filesep,'gridgen'])
-addpath([cwd, filesep, '..', filesep,'..',filesep,'vis']);
+%addpath([cwd, filesep, '..', filesep,'..',filesep,'vis']);
 
 %% MATLAB GRID GENERATION
 xg = makegrid_cart_3D(xdist,lxp,ydist,lyp,I,glat,glon);

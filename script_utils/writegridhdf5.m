@@ -5,10 +5,14 @@ validateattributes(outdir, {'char'}, {'vector'})
 %% STORE all GRID DATA 
 % INCLUDING STUFF NOT NEEDED BY FORTRAN CODE, BUT POSSIBLY USEFUL FOR PLOTTING
 outdir = resolvepath(outdir);
+if ~exist(outdir,'dir')
+  mkdir(outdir)
+end
 
-mkdir(outdir)
 fn = [outdir,filesep,'simgrid.h5'];
-delete(fn)
+if exist(fn,'file')
+  delete(fn)
+end
 disp(['writing ',fn])
 
 h5w(fn,'lx',xg.lx)
