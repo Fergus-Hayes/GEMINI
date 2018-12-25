@@ -1,17 +1,19 @@
 function particles_BCs(simpath, fracwidth)
-
-validateattributes(simpath, {'char'}, {'vector'})
-validateattributes(fracwidth, {'numeric'}, {'scalar','positive'})
 %% Generate particles state to initialize simulation
 %
 % simpath: path to particular simulation e.g. ~/simulations/isinglas
+
+validateattributes(simpath, {'char'}, {'vector'})
+validateattributes(fracwidth, {'numeric'}, {'scalar','positive'})
+
+usehdf = true;
 
 assert(exist(simpath,'directory'), [simpath,' does not exist'])
 
 cwd = fileparts(mfilename('fullpath'));
 addpath([cwd,filesep','..',filesep,'..',filesep,'script_utils'])
 
-%REFERENCE GRID TO USE
+%% REFERENCE GRID TO USE
 dirconfig = '.';
 dirgrid = [simpath,filesep,'inputs'];
 
@@ -21,7 +23,7 @@ mkdir(outdir)
 
 
 %% READ IN THE SIMULATION INFORMATION (MEANS WE NEED TO CREATE THIS FOR THE SIMULATION WE WANT TO DO)
-[ymd0,UTsec0,tdur]=readconfig([dirconfig,'/config.ini']);
+[ymd0,UTsec0,tdur]=readconfig([dirconfig,filesep,'config.ini']);
 
 %% RELOAD THE GRID (SO THIS ALREADY NEEDS TO BE MADE, AS WELL)
 xg = readgrid(dirgrid);
@@ -82,12 +84,13 @@ end
 
 %% SAVE THIS DATA TO APPROPRIATE FILES - LEAVE THE SPATIAL AND TEMPORAL INTERPOLATION TO THE
 % FORTRAN CODE IN CASE DIFFERENT GRIDS NEED TO BE TRIED.  THE EFIELD DATA DO NOT NEED TO BE SMOOTHED.
-filename=[outdir,'simsize.dat'];
+filename=[outdir,filesep,'simsize.dat'];
 fid=fopen(filename,'w');
 fwrite(fid,llon,'integer*4');
 fwrite(fid,llat,'integer*4');
 fclose(fid);
-filename=[outdir,'simgrid.dat'];
+
+filename=[outdir,filesep,'simgrid.dat'];
 fid=fopen(filename,'w');
 fwrite(fid,mlon,'real*8');
 fwrite(fid,mlat,'real*8');
@@ -96,7 +99,7 @@ for it=1:lt
     UTsec=expdate(it,4)*3600+expdate(it,5)*60+expdate(it,6);
     ymd=expdate(it,1:3);
     filename=datelab(ymd,UTsec);
-    filename=[outdir,filename,'.dat']
+    filename=[outdir,filename,'.dat'];
     fid=fopen(filename,'w');
     fwrite(fid,Qit(:,:,it),'real*8');
     fwrite(fid,E0it(:,:,it),'real*8');

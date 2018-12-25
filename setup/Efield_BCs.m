@@ -1,6 +1,8 @@
 function Efield_BCs(simpath)
 
 validateattributes(simpath, {'char'}, {'vector'})
+
+usehdf = true;
 %% Generate Electric Field boundary conditions to initialize simulation
 %
 % simpath: path to particular simulation e.g. ~/simulations/isinglas
@@ -19,7 +21,7 @@ mkdir(outdir)
 
 %% READ IN THE SIMULATION INFORMATION 
 % WE NEED TO CREATE THIS FOR THE SIMULATION
-[ymd0, UTsec0]=readconfig([dirconfig,'/config.ini']);
+[ymd0, UTsec0]=readconfig([dirconfig,filesep,'config.ini']);
 
 
 %% RELOAD THE GRID (SO THIS ALREADY NEEDS TO BE MADE, AS WELL)
@@ -100,12 +102,13 @@ end
 % LEAVE THE SPATIAL AND TEMPORAL INTERPOLATION TO THE
 % FORTRAN CODE IN CASE DIFFERENT GRIDS NEED TO BE TRIED.  THE EFIELD DATA DO
 % NOT TYPICALLY NEED TO BE SMOOTHED.
-filename=[outdir,'simsize.dat'];
+filename=[outdir,filesep,'simsize.dat'];
 fid=fopen(filename,'w');
 fwrite(fid,llon,'integer*4');
 fwrite(fid,llat,'integer*4');
 fclose(fid);
-filename=[outdir,'simgrid.dat'];
+
+filename=[outdir,filesep,'simgrid.dat'];
 fid=fopen(filename,'w');
 fwrite(fid,mlon,'real*8');
 fwrite(fid,mlat,'real*8');
