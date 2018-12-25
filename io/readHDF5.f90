@@ -121,7 +121,13 @@ call h5f%initialize(h5fn, status='old', action='r')
 
 if (flagswap/=1) then
   call h5f%get('nsall', statetmp)
-  if(any(shape(statetmp) /= [lx1,lx2,lx3all,lsp])) error stop 'wrong dimensions read from '//h5fn
+  
+  if(any(shape(statetmp) /= [lx1,lx2,lx3all,lsp])) then
+    write(stderr,*) 'expected dims: ',lx1,lx2,lx3all,lsp
+    write(stderr,*) 'but read dims: ',shape(statetmp)    
+    error stop 'wrong dimensions read from '//h5fn
+  endif
+  
   nsall(1:lx1,1:lx2,1:lx3all,1:lsp) = statetmp
 
   call h5f%get('vs1all', statetmp)
@@ -130,10 +136,15 @@ if (flagswap/=1) then
   call h5f%get('Tsall', statetmp)
   Tsall(1:lx1,1:lx2,1:lx3all,1:lsp) = statetmp
 else
-  !print *, shape(statetmp),shape(nsall)
 
   call h5f%get('nsall', statetmp)
-  if(any(shape(statetmp) /= [lx1,lx3all,lx2,lsp])) error stop 'wrong dimensions read from '//h5fn
+  !! check one time if read is correct shape
+  if(any(shape(statetmp) /= [lx1,lx3all,lx2,lsp])) then
+    write(stderr,*) 'expected dims: ',lx1,lx3all,lx2,lsp
+    write(stderr,*) 'but read dims: ',shape(statetmp)  
+    error stop 'wrong dimensions read from '//h5fn
+  endif
+  
   nsall(1:lx1,1:lx2,1:lx3all,1:lsp)=reshape(statetmp,[lx1,lx2,lx3all,lsp],order=[1,3,2,4])
 
   call h5f%get('vs1all', statetmp)
