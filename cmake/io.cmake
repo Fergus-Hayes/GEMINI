@@ -6,7 +6,7 @@ function(iofun USEHDF)
   target_compile_options(io PRIVATE ${FFLAGS})
   target_include_directories(io PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/numerical) # this line stays here
 
-  if(USEHDF5)
+  if(USEHDF)
     find_package(HDF5 REQUIRED COMPONENTS Fortran Fortran_HL)
 
     include(FetchContent)
