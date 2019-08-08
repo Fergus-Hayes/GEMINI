@@ -65,13 +65,13 @@ fi=reshape(filist,[lx1i,lx2i,lx3i])
 
 !> dump results to a file so we can check things
 !> has no problem with > 2GB output files
-open(newunit=u,file='input2D.dat',status='replace',form='unformatted',access='stream')
+open(newunit=u,file='input3D.dat',status='replace',form='unformatted',access='stream')
 write(u) lx1,lx2,lx3
 write(u) x1,x2,x3,f
 close(u)
 
 !> has no problem with > 2GB output files
-open(newunit=u,file='output2D.dat',status='replace',form='unformatted',access='stream')
+open(newunit=u,file='output3D.dat',status='replace',form='unformatted',access='stream')
 write(u) lx1i,lx2i,lx3i
 write(u) x1i,x2i,x3i,fi   !since only interpolating in x1
 close(u)
