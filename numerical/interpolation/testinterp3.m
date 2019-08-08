@@ -27,7 +27,7 @@ function [x1,x2,x3,f]=testinterp3(filename)
   title('3D interp x_1-x_2')
   
   subplot(132)
-  imagesc(x3,x1,squeeze(f(:,end/2,:)));
+  imagesc(x3,x1,squeeze(f(:,end/2-10,:)));
   axis xy;
   xlabel('x_3')
   ylabel('x_1')
@@ -36,7 +36,7 @@ function [x1,x2,x3,f]=testinterp3(filename)
   title('3D interp x_1-x_3')
   
   subplot(133)
-  imagesc(x2,x3,squeeze(f(end/2,:,:)));
+  imagesc(x2,x3,squeeze(f(end/2-10,:,:)));
   axis xy;
   xlabel('x_2')
   ylabel('x_3')

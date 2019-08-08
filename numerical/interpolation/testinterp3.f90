@@ -32,7 +32,7 @@ x3=x3-sum(x3)/size(x3,1)
 do ix3=1,lx3
   do ix2=1,lx2
     do ix1=1,lx1
-        f(ix1,ix2,ix3)=sin(2._wp*pi/5._wp*x1(ix1))*cos(2._wp*pi/50._wp*x2(ix2))*sin(2._wp*pi/50._wp*x2(ix2))
+        f(ix1,ix2,ix3)=sin(2._wp*pi/5._wp*x1(ix1))*cos(2._wp*pi/20._wp*x2(ix2))*sin(2._wp*pi/15._wp*x3(ix3))
     end do
   end do
 end do
