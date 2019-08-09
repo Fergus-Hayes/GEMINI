@@ -5,7 +5,7 @@ use mpi, only: mpi_integer, mpi_comm_world, mpi_status_ignore
 
 use phys_consts, only: wp, lnchem, pi, re, debug
 use grid, only: curvmesh, lx1, lx2, lx3, clear_unitvecs
-use interpolation, only : interp2
+use interpolation, only : interp2, interp3
 use io, only : date_filename
 use timeutils, only : doy_calc,dateinc
 use mpimod, only: myid, lid, taglrho, taglz, mpi_realprec, tagdno, tagdnn2, tagdno2, tagdtn, tagdvnrho, tagdvnz, tagly
@@ -25,6 +25,11 @@ real(wp), dimension(:), allocatable, private :: yn    !used in cartesian 2D and 
 real(wp), dimension(:), allocatable, private :: zn
 real(wp), dimension(:), allocatable, private :: xn    !for 3D cartesian interpolation
 integer, private :: lrhon,lzn,lyn,lxn
+
+!!full grid parameters
+real(wp), dimension(:), allocatable, private :: xnall
+real(wp), dimension(:), allocatable, private :: ynall
+integer, private :: lxnall,lynall
 
 
 !! STORAGE FOR NEUTRAL SIMULATION DATA.
@@ -51,10 +56,16 @@ real(wp), private :: UTsecnext
 !SPACE TO STORE PROJECTION FACTORS
 real(wp), dimension(:,:,:), allocatable, private :: proj_erhop_e1,proj_ezp_e1,proj_erhop_e2,proj_ezp_e2,proj_erhop_e3,proj_ezp_e3    !these projections are used in the axisymmetric interpolation
 real(wp), dimension(:,:,:), allocatable, private :: proj_eyp_e1,proj_eyp_e2,proj_eyp_e3    !these are for Cartesian projections
+real(wp), dimension(:,:,:), allocatable, private :: proj_exp_e1,proj_exp_e2,proj_exp_e3
 
 
 !PLASMA GRID ZI AND RHOI LOCATIONS FOR INTERPOLATIONS
-real(wp), dimension(:), allocatable, private :: zi,yi,rhoi    !this is to be a flat listing of sites on the, rhoi only used in axisymmetric and yi only in cartesian
+real(wp), dimension(:), allocatable, private :: zi,yi,xi,rhoi    !this is to be a flat listing of sites on the, rhoi only used in axisymmetric and yi only in cartesian
+
+
+!USED FOR 3D INTERPOLATION WHERE WORKER DIVISIONS ARE COMPLICATED
+real(wp), dimension(:,:,:,:), private, allocatable :: extents    !roots array that is used to store min/max x,y,z of each works
+real(wp), dimension(:,:,:,:), private, allocatable :: indx       !roots array that contain indices for each workers needed piece of the neutral data
 
 
 !! BASE MSIS ATMOSPHERIC STATE ON WHICH TO APPLY PERTURBATIONS
@@ -579,6 +590,240 @@ end if
 end subroutine gridproj_dneu2D
 
 
+subroutine gridproj_dneu3D(dxn,dyn,dzn,meanlat,meanlong,neudir,x)
+
+!Read in the grid for the neutral data and project unit vectors into the appropriiate directions.
+!Also allocate module-scope variables for storing neutral perturbations read in from input files.
+
+real(wp), intent(in) :: dxn,dyn,dzn           !neutral grid spacing in horizontal "rho or y" and vertical directions
+real(wp), intent(in) :: meanlat, meanlong    !neutral source center location
+character(*), intent(in) :: neudir           !directory where neutral simulation data is kept
+logical, intent(in) :: flagcart              !whether or not the input data are to be interpreted as Cartesian
+type(curvmesh), intent(inout) :: x           !inout to allow deallocation of unit vectors once we are done with them, should consider exporting this to another functino to be called from main program to avoid having x writeable...
+
+real(wp) :: meanyn
+
+integer :: inunit          !file handle for various input files
+character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_ffilename functinos
+real(wp) :: theta1,phi1,theta2,phi2,gammarads,theta3,phi3,gamma1,gamma2,phip
+real(wp) :: xp,yp
+real(wp), dimension(3) :: erhop,ezp,eyp,tmpvec
+real(wp) :: tmpsca
+
+integer :: ix1,ix2,ix3,ihorzn,izn,iid,ierr
+real(wp), dimension(x%lx1,x%lx2,x%lx3) :: zimat,rhoimat,yimat,ximat
+
+
+!Neutral source locations specified in input file, here referenced by spherical magnetic coordinates.
+phi1=meanlong*pi/180d0
+theta1=pi/2d0-meanlat*pi/180d0
+
+
+!Convert plasma simulation grid locations to z,rho values to be used in interoplation.  altitude ~ zi; lat/lon --> rhoi.  Also compute unit vectors and projections
+if (myid==0) then
+  print *, 'Computing alt,radial distance values for plasma grid and completing rotations'
+end if
+zimat=x%alt     !vertical coordinate
+do ix3=1,lx3
+  do ix2=1,lx2
+    do ix1=1,lx1
+      !INTERPOLATION BASED ON GEOMAGNETIC COORDINATES
+      theta2=x%theta(ix1,ix2,ix3)                    !field point zenith angle
+      if (lx2/=1) then
+        phi2=x%phi(ix1,ix2,ix3)                      !field point azimuth, full 3D calculation
+      else
+        phi2=phi1                                    !assume the longitude is the samem as the source in 2D, i.e. assume the source epicenter is in the meridian of the grid
+      end if
+
+
+      !!COMPUTE DISTANCES - ZZZ possibly superfluous for 3D case???
+      !gammarads=cos(theta1)*cos(theta2)+sin(theta1)*sin(theta2)*cos(phi1-phi2)     !this is actually cos(gamma)
+      !if (gammarads>1._wp) then     !handles weird precision issues in 2D
+      !  gammarads=1._wp
+      !else if (gammarads<-1._wp) then
+      !  gammarads=-1._wp
+      !end if
+      !gammarads=acos(gammarads)                     !angle between source location annd field point (in radians)
+      !rhoimat(ix1,ix2,ix3)=Re*gammarads    !rho here interpreted as the arc-length defined by angle between epicenter and ``field point''
+      !! ZZZ end possibly superfluous block of code...
+
+      !we need a phi locationi (not spherical phi, but azimuth angle from epicenter), as well, but not for interpolation - just for doing vector rotations
+      theta3=theta2
+      phi3=phi1
+      gamma1=cos(theta2)*cos(theta3)+sin(theta2)*sin(theta3)*cos(phi2-phi3)
+      if (gamma1>1._wp) then     !handles weird precision issues in 2D
+        gamma1=1._wp
+      else if (gamma1<-1._wp) then
+        gamma1=-1._wp
+      end if
+      gamma1=acos(gamma1)
+
+      gamma2=cos(theta1)*cos(theta3)+sin(theta1)*sin(theta3)*cos(phi1-phi3)
+      if (gamma2>1._wp) then     !handles weird precision issues in 2D
+        gamma2=1._wp
+      else if (gamma2<-1._wp) then
+        gamma2=-1._wp
+      end if
+      gamma2=acos(gamma2)
+      xp=Re*gamma1
+      yp=Re*gamma2     !this will likely always be positive, since we are using center of earth as our origin, so this should be interpreted as distance as opposed to displacement
+
+
+      !COMPUTE COORDIANTES FROM DISTANCES
+      if (theta3>theta1) then       !place distances in correct quadrant, here field point (theta3=theta2) is is SOUTHward of source point (theta1), whreas yp is distance northward so throw in a negative sign
+        yp=-1._wp*yp            !do we want an abs here to be safe
+      end if
+      if (phi2<phi3) then     !assume we aren't doing a global grid otherwise need to check for wrapping, here field point (phi2) less than soure point (phi3=phi1)
+        xp=-1._wp*xp
+      end if
+      phip=atan2(yp,xp)
+
+      ximat(ix1,ix2,ix3)=xp
+      yimat(ix1,ix2,ix3)=yp
+
+
+      !PROJECTIONS FROM NEUTURAL GRID VECTORS TO PLASMA GRID VECTORS
+      !projection factors for mapping from axisymmetric to dipole (go ahead and compute projections so we don't have to do it repeatedly as sim runs
+      ezp=x%er(ix1,ix2,ix3,:)
+
+      tmpvec=ezp*x%e2(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_ezp_e2(ix1,ix2,ix3)=tmpsca
+
+      tmpvec=ezp*x%e1(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_ezp_e1(ix1,ix2,ix3)=tmpsca
+
+      tmpvec=ezp*x%e3(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)    !should be zero, but leave it general for now
+      proj_ezp_e3(ix1,ix2,ix3)=tmpsca
+
+      eyp=-1._wp*x%etheta(ix1,ix2,ix3,:)
+
+      tmpvec=eyp*x%e1(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_eyp_e1(ix1,ix2,ix3)=tmpsca
+
+      tmpvec=eyp*x%e2(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_eyp_e2(ix1,ix2,ix3)=tmpsca
+
+      tmpvec=eyp*x%e3(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_eyp_e3(ix1,ix2,ix3)=tmpsca
+
+      exprm=x%ephi(ix1,ix2,ix3,:)
+
+      tmpvec=exprm*x%e1(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_exp_e1=tmpsca
+
+      tmpvec=exprm*x%e2(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_exp_e2=tmpsca
+
+      tmpvec=exprm*x%e3(ix1,ix2,ix3,:)
+      tmpsca=sum(tmpvec)
+      proj_exp_e3=tmpsca
+    end do
+  end do
+end do
+
+
+!Assign values for flat lists of grid points
+zi=pack(zimat,.true.)     !create a flat list of grid points to be used by interpolation ffunctions
+yi=pack(yimat,.true.)
+xi=pack(ximat,.true.)
+
+
+!GRID UNIT VECTORS NO LONGER NEEDED ONCE PROJECTIONS ARE CALCULATED...
+call clear_unitvecs(x)
+
+
+!Establish the size of the grid based on input file and distribute to workers
+if (myid==0) then    !root
+  write(filename,*) trim(adjustl(neudir)),'simsize.dat'
+  print *, 'Inputting neutral size from file:  ',trim(adjustl(filename))
+  open(newunit=inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
+  read(inunit) lxnall,lynall,lzn
+  close(inunit)
+  print *, 'Neutral data has lx,ly,lz size:  ',lxnall,lynall,lzn,' with spacing dx,dy,dz',dxn,dyn,dzn
+
+
+  !root must allocate space for the entire grid of input data - this might be doable one parameter at a time???
+  allocate(zn(lzn))    !these are module-scope variables
+  allocate(rhon(1))  !not used in Cartesian code so just set to something
+  allocate(xn(lxnall))
+  allocate(yn(lynall))
+  allocate(dnOall(lzn,lxnall,lynall),dnN2all(lzn,lxnall,lynall),dnO2all(lzn,lxnall,lynall),dvnrhoall(lzn,lxnall,lynall), &
+             dvnzall(lzn,lxnall,lynall),dvnxall(lzn,lxnall,lynall),dTnall(lzn,lxnall,lynall))
+
+
+  !Define a global neutral grid (input data) by assuming that the spacing is constant
+  ynall=[ ((real(iyn,8)-1._wp)*dyn, iyn=1,lynall) ]
+  meanyn=sum(ynall,1)/size(ynall,1)
+  ynall=ynall-meanyn     !the neutral grid should be centered on zero for a cartesian interpolation
+  xnall=[ ((real(ixn,8)-1._wp)*dxn, ixn=1,lxnall) ]
+  meanxn=sum(xnall,1)/size(xnall,1)
+  xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
+  zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
+  
+  if (myid==0) then
+    print *, 'Creating neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall),maxval(ynall),minval(zn),maxval(zn)
+  end if
+  
+
+  !calculate the extent of my piece of the grid using max altitude specified for the neutral grid
+  
+  
+  !receive extents of each of the other workers: extents(x,y,z)
+
+
+  !find index into into neutral arrays for each worker:  indx(lid,2,2,2)
+
+
+  !send each worker the sizes for their particular chunk (all different)
+  do iid=1,lid-1
+    call mpi_send(lhorzn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
+    call mpi_send(lzn,1,MPI_INTEGER,iid,taglz,MPI_COMM_WORLD,ierr)
+  end do
+
+
+  !send workers their parts of the neutral grids
+else                 !workers
+  !calculate the extent of my grid
+
+
+  !send to root
+
+
+  !receive my sizes from root
+  call mpi_recv(lhorzn,1,MPI_INTEGER,0,taglrho,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(lzn,1,MPI_INTEGER,0,taglz,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+
+
+  !receive my parts of neutral grid from root
+end if
+
+
+!PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
+if (myid==0) then
+  if (flagcart) then
+    print *, 'Min/max yn,zn values',minval(yn),maxval(yn),minval(zn),maxval(zn)
+    print *, 'Min/max yi,zi values',minval(yi),maxval(yi),minval(zi),maxval(zi)
+  else
+    print *, 'Min/max rhon,zn values',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
+    print *, 'Min/max rhoi,zi values',minval(rhoi),maxval(rhoi),minval(zi),maxval(zi)
+  end if
+
+  print *, 'Source lat/long:  ',meanlat,meanlong
+  print *, 'Plasma grid lat range:  ',minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+  print *, 'Plasma grid lon range:  ',minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
+end if
+
+end subroutine gridproj_dneu3D
+
+
 subroutine read_dneu(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
 
 ! This subroutine reads in neutral frame data, if necessary and puts the results
@@ -916,12 +1161,16 @@ end subroutine timeinterp_dneu
 
 subroutine make_dneu()
 
+!ZZZ - could make this take in type of neutral interpolation and do allocations accordingly
+
 !allocate and compute plasma grid z,rho locations and space to save neutral perturbation variables and projection factors
 allocate(zi(lx1*lx2*lx3),rhoi(lx1*lx2*lx3))
 allocate(yi(lx1*lx2*lx3))
+allocate(xi(lx1*lx2*lx3))
 allocate(proj_erhop_e1(lx1,lx2,lx3),proj_ezp_e1(lx1,lx2,lx3),proj_erhop_e2(lx1,lx2,lx3),proj_ezp_e2(lx1,lx2,lx3), &
          proj_erhop_e3(lx1,lx2,lx3),proj_ezp_e3(lx1,lx2,lx3))
 allocate(proj_eyp_e1(lx1,lx2,lx3),proj_eyp_e2(lx1,lx2,lx3),proj_eyp_e3(lx1,lx2,lx3))
+allocate(proj_exp_e1(lx1,lx2,lx3),proj_exp_e2(lx1,lx2,lx3),proj_exp_e3(lx1,lx2,lx3))
 allocate(dnOiprev(lx1,lx2,lx3),dnN2iprev(lx1,lx2,lx3),dnO2iprev(lx1,lx2,lx3),dvnrhoiprev(lx1,lx2,lx3), &
          dvnziprev(lx1,lx2,lx3),dTniprev(lx1,lx2,lx3),dvn1iprev(lx1,lx2,lx3),dvn2iprev(lx1,lx2,lx3), &
          dvn3iprev(lx1,lx2,lx3))
@@ -932,10 +1181,12 @@ allocate(nnmsis(lx1,lx2,lx3,lnchem),Tnmsis(lx1,lx2,lx3),vn1base(lx1,lx2,lx3),vn2
 
 !start everyone out at zero
 zi=0d0; rhoi=0d0; yi=0d0;
+xi=0d0
 proj_erhop_e1=0d0; proj_ezp_e1=0d0;
 proj_erhop_e2=0d0; proj_ezp_e2=0d0;
 proj_erhop_e3=0d0; proj_ezp_e3=0d0;
 proj_eyp_e1=0d0; proj_eyp_e2=0d0; proj_eyp_e3=0d0;
+proj_exp_e1=0d0; proj_exp_e2=0d0; proj_exp_e3=0d0;
 dnOiprev=0d0; dnN2iprev=0d0; dnO2iprev=0d0; dTniprev=0d0; dvnrhoiprev=0d0; dvnziprev=0d0;
 dvn1iprev=0d0; dvn2iprev=0d0; dvn3iprev=0d0;
 dnOinext=0d0; dnN2inext=0d0; dnO2inext=0d0; dTninext=0d0; dvnrhoinext=0d0; dvnzinext=0d0;
