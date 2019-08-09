@@ -30,7 +30,7 @@ integer, private :: lrhon,lzn,lyn,lxn
 !! STORAGE FOR NEUTRAL SIMULATION DATA.
 ! These will be singleton in the second dimension (longitude) in the case of 2D interpolation...
 !! THESE ARE INCLUDED AS MODULE VARIATIONS TO AVOID HAVING TO REALLOCATE AND DEALLOCIATE EACH TIME WE NEED TO INTERP
-real(wp), dimension(:,:,:), allocatable, private :: dnO,dnN2,dnO2,dvnrho,dvnz,dTn
+real(wp), dimension(:,:,:), allocatable, private :: dnO,dnN2,dnO2,dvnrho,dvnz,dvnx,dTn
 
 
 !ARRAYS TO STORE NEUTRAL DATA THAT HAS BEEN INTERPOLATED
@@ -785,7 +785,84 @@ deallocate(tmpinterp)
 end subroutine spaceinterp_dneu2D
 
 
+subroutine spaceinterp_dneu3D()
+
+!performs spatial interpolation for 3D input neutral data from MAGIC or some other source
+
+real(wp), dimension(:,:), allocatable :: tmpinterp
+real(wp), dimension(lx1*lx2*lx3) :: parami    !work array for temp storage of interpolated data, note sizes taken from grid module data
+
+
+!INTERPOLATE IN THREE DIMENSIONS
+parami=interp3(zn,xn,yn,dnO,zi,xi,yi)         !interp to temp var.
+dnOiprev=dnOinext                       !save new previous
+dnOinext=reshape(parami,[lx1,lx2,lx3])  !overwrite next with new interpolated input
+
+parami=interp3(zn,xn,yn,dnN2,zi,xi,yi)
+dnN2iprev=dnN2inext
+dnN2inext=reshape(parami,[lx1,lx2,lx3])
+
+parami=interp3(zn,xn,yn,dnO2,zi,xi,yi)
+dnO2iprev=dnO2inext
+dnO2inext=reshape(parami,[lx1,lx2,lx3])
+
+!ZZZ - do we want to make dvnrho-->dvny???
+parami=interp3(zn,xn,yn,dvnrho,zi,xi,yi)
+dvnrhoiprev=dvnrhoinext    !interpreted as y-component in this (cartesian) function
+dvnrhoinext=reshape(parami,[lx1,lx2,lx3])
+
+parami=interp3(zn,xn,yn,dvnz,zi,xi,yi)
+dvnziprev=dvnzinext
+dvnzinext=reshape(parami,[lx1,lx2,lx3])
+
+parami=interp3(zn,xn,yn,dvnx,zi,xi,yi)
+dvnxiprev=dvnxinext
+dvnxinext=reshape(parami,[lx1,lx2,lx3])
+
+parami=interp3(zn,xn,yn,dTn,zi,xi,yi)
+dTniprev=dTninext
+dTninext=reshape(parami,[lx1,lx2,lx3])
+
+
+!MORE DIAG
+if (myid==lid/2) then
+  print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+  print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+  print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+  print *, 'Min/max values for dvrhoi:  ',minval(dvnrhoinext),maxval(dvnrhoinext)
+  print *, 'Min/max values for dvnzi:  ',minval(dvnzinext),maxval(dvnzinext)
+  print *, 'Min/max values for dvnzi:  ',minval(dvnxinext),maxval(dvnxinext)
+  print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
+end if
+
+
+!ROTATE VECTORS INTO X1 X2 DIRECTIONS (Need to include unit vectors with grid
+!structure)
+dvn1iprev=dvn1inext   !save the old data for the rotated vectors
+dvn2iprev=dvn2inext
+dvn3iprev=dvn3inext
+dvn1inext=dvnrhoinext*proj_eyp_e1+dvnzinext*proj_ezp_e1+dvnxinext*proj_exp_e1    !apply projection to complete rotation into dipole coordinates; drhoi interpreted here at teh y component (northward)
+dvn2inext=dvnrhoinext*proj_eyp_e2+dvnzinext*proj_ezp_e2+dvnxinext*proj_exp_e2
+dvn3inext=dvnrhoinext*proj_eyp_e3+dvnzinext*proj_ezp_e3+dvnxinext*proj_exp_e3
+
+
+!MORE DIAGNOSTICS
+if (myid==lid/2) then
+  print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
+  print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
+  print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
+  print *, 'Min/max values for dvn1i:  ',minval(dvn1inext),maxval(dvn1inext)
+  print *, 'Min/max values for dvn2i:  ',minval(dvn2inext),maxval(dvn2inext)
+  print *, 'Min/max values for dvn3i:  ',minval(dvn3inext),maxval(dvn3inext)
+  print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
+end if
+
+end subroutine spaceinterp_dneu3D
+
+
 subroutine timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
+
+!interpolatino in time - no sensitive to dimensionality of the input neutral data...
 
 real(wp), intent(in) :: t,dt
 real(wp), dimension(:,:,:), intent(out) :: dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow
