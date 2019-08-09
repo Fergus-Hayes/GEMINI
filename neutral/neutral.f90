@@ -19,20 +19,18 @@ private
 
 !! ALL ARRAYS THAT FOLLOW ARE USED WHEN INCLUDING NEUTRAL PERTURBATIONS FROM ANOTHER MODEL
 !! ARRAYS TO STORE THE NEUTRAL GRID INFORMATION
-real(wp), dimension(:), allocatable, private :: rhon
 !! as long as the neutral module is in scope these persist and do not require a "save"; this variable only used by the axisymmetric interpolation
-
-real(wp), dimension(:), allocatable, private :: yn
-!! this variable only used in cartesian interpolation
-
+real(wp), dimension(:), allocatable, private :: rhon     !used for axisymmetric 2D simulations
+real(wp), dimension(:), allocatable, private :: yn    !used in cartesian 2D and 3D interpolation
 real(wp), dimension(:), allocatable, private :: zn
-integer, private :: lrhon,lzn,lyn
+real(wp), dimension(:), allocatable, private :: xn    !for 3D cartesian interpolation
+integer, private :: lrhon,lzn,lyn,lxn
 
 
 !! STORAGE FOR NEUTRAL SIMULATION DATA.
+! These will be singleton in the second dimension (longitude) in the case of 2D interpolation...
 !! THESE ARE INCLUDED AS MODULE VARIATIONS TO AVOID HAVING TO REALLOCATE AND DEALLOCIATE EACH TIME WE NEED TO INTERP
-real(wp), dimension(:,:), allocatable, private :: dnO,dnN2,dnO2,dvnrho,dvnz,dTn
-!! assumed axisymmetric, so only 2D
+real(wp), dimension(:,:,:), allocatable, private :: dnO,dnN2,dnO2,dvnrho,dvnz,dTn
 
 
 !ARRAYS TO STORE NEUTRAL DATA THAT HAS BEEN INTERPOLATED
@@ -226,7 +224,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then   !negative time means that we need to loa
     UTsecnext=UTsecprev
 
     !Create a neutral grid, do some allocations and projections
-    call gridproj_dneu(drhon,dzn,meanlat,meanlong,neudir,.false.,x)    !set false to denote not Cartesian...
+    call gridproj_dneu2D(drhon,dzn,meanlat,meanlong,neudir,.false.,x)    !set false to denote not Cartesian...
   end if
 
   !Read in neutral data from a file
@@ -236,7 +234,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then   !negative time means that we need to loa
   if (myid==0) then
     print *, 'Spatial interpolation and rotation of vectors for date:  ',ymdtmp,' ',UTsectmp
   end if
-  call spaceinterp_dneu(.false.)
+  call spaceinterp_dneu2D(.false.)
 
   !UPDATE OUR CONCEPT OF PREVIOUS AND NEXT TIMES
   tprev=tnext
@@ -311,7 +309,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
     UTsecnext=UTsecprev
 
     !Create a neutral grid, do some allocations and projections
-    call gridproj_dneu(dyn,dzn,meanlat,meanlong,neudir,.true.,x)    !set true to denote Cartesian...
+    call gridproj_dneu2D(dyn,dzn,meanlat,meanlong,neudir,.true.,x)    !set true to denote Cartesian...
   end if
 
   !Read in neutral data from a file
@@ -321,7 +319,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
   if (myid==0) then
     print *, 'Spatial interpolation and rotation of vectors for date:  ',ymdtmp,' ',UTsectmp
   end if
-  call spaceinterp_dneu(.true.)
+  call spaceinterp_dneu2D(.true.)
 
   !UPDATE OUR CONCEPT OF PREVIOUS AND NEXT TIMES
   tprev=tnext
@@ -352,7 +350,7 @@ vn3=vn3base+dvn3inow
 end subroutine neutral_perturb_cart
 
 
-subroutine gridproj_dneu(dhorzn,dzn,meanlat,meanlong,neudir,flagcart,x)
+subroutine gridproj_dneu2D(dhorzn,dzn,meanlat,meanlong,neudir,flagcart,x)
 
 !Read in the grid for the neutral data and project unit vectors into the appropriiate directions.
 !Also allocate module-scope variables for storing neutral perturbations read in from input files.
@@ -361,7 +359,7 @@ real(wp), intent(in) :: dhorzn,dzn           !neutral grid spacing in horizontal
 real(wp), intent(in) :: meanlat, meanlong    !neutral source center location
 character(*), intent(in) :: neudir           !directory where neutral simulation data is kept
 logical, intent(in) :: flagcart              !whether or not the input data are to be interpreted as Cartesian
-type(curvmesh), intent(inout) :: x           !inout to allow deallocation of unit vectors once we are done with them
+type(curvmesh), intent(inout) :: x           !inout to allow deallocation of unit vectors once we are done with them, should consider exporting this to another functino to be called from main program to avoid having x writeable...
 
 integer :: lhorzn
 real(wp) :: meanyn
@@ -407,7 +405,10 @@ else
   allocate(yn(1))    !not used in the axisymmetric code so just initialize to something
   lrhon=lhorzn
 end if
-allocate(dnO(lzn,lhorzn),dnN2(lzn,lhorzn),dnO2(lzn,lhorzn),dvnrho(lzn,lhorzn),dvnz(lzn,lhorzn),dTn(lzn,lhorzn))
+
+
+!Note that the second dimension ("longitude") is singleton so that we are able to also use these vars for 3D input
+allocate(dnO(lzn,1,lhorzn),dnN2(lzn,1,lhorzn),dnO2(lzn,1,lhorzn),dvnrho(lzn,1,lhorzn),dvnz(lzn,1,lhorzn),dTn(lzn,1,lhorzn))
 
 
 !Define a grid (input data) by assuming that the spacing is constant
@@ -575,13 +576,14 @@ if (myid==0) then
   print *, 'Plasma grid lon range:  ',minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
 end if
 
-end subroutine gridproj_dneu
+end subroutine gridproj_dneu2D
 
 
 subroutine read_dneu(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
 
 ! This subroutine reads in neutral frame data, if necessary and puts the results
 ! in a module-scope variable for later use
+! I think this will work in 2d or 3d...  will try...
 
 real(wp), intent(in) :: tprev,tnext,t,dtneu,dt        !times of previous input frame,next frame and then current time
 character(*), intent(in) :: neudir                    !directory where neutral simulation data is kept
@@ -657,60 +659,83 @@ end if
 end subroutine read_dneu
 
 
-subroutine spaceinterp_dneu(flagcart)
+subroutine spaceinterp_dneu2D(flagcart)
 
 !must take into account the type of interpolation that is being done
 logical, intent(in) :: flagcart
 
+integer :: lhorzn
+real(wp), dimension(:,:), allocatable :: tmpinterp
 real(wp), dimension(lx1*lx2*lx3) :: parami    !work array for temp storage of interpolated data, note sizes taken from grid module data
 
 
-if(flagcart) then
-  parami=interp2(zn,yn,dnO,zi,yi)     !interp to temp var.
-  dnOiprev=dnOinext                       !save new pervious
-  dnOinext=reshape(parami,[lx1,lx2,lx3])    !overwrite next with new interpolated input
+!Array for packing neutral data
+if (flagcart) then
+  lhorzn=lyn
+else
+  lhorzn=lrhon
+end if
+allocate(tmpinterp(lzn,lhorzn))
 
-  parami=interp2(zn,yn,dnN2,zi,yi)
+
+if(flagcart) then
+  tmpinterp=dnO(:,1,:)                    !pack into 2D array for interp2
+  parami=interp2(zn,yn,tmpinterp,zi,yi)         !interp to temp var.
+  dnOiprev=dnOinext                       !save new previous
+  dnOinext=reshape(parami,[lx1,lx2,lx3])  !overwrite next with new interpolated input
+
+  tmpinterp=dnN2(:,1,:)
+  parami=interp2(zn,yn,tmpinterp,zi,yi)
   dnN2iprev=dnN2inext
   dnN2inext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,yn,dnN2,zi,yi)
+  tmpinterp=dnO2(:,1,:)
+  parami=interp2(zn,yn,tmpinterp,zi,yi)
   dnO2iprev=dnO2inext
   dnO2inext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,yn,dvnrho,zi,yi)
+  tmpinterp=dvnrho(:,1,:)
+  parami=interp2(zn,yn,tmpinterp,zi,yi)
   dvnrhoiprev=dvnrhoinext    !interpreted as y-component in this (cartesian) function
   dvnrhoinext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,yn,dvnz,zi,yi)
+  tmpinterp=dvnz(:,1,:)
+  parami=interp2(zn,yn,tmpinterp,zi,yi)
   dvnziprev=dvnzinext
   dvnzinext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,yn,dTn,zi,yi)
+  tmpinterp=dTn(:,1,:)
+  parami=interp2(zn,yn,tmpinterp,zi,yi)
   dTniprev=dTninext
   dTninext=reshape(parami,[lx1,lx2,lx3])
 else
-  parami=interp2(zn,rhon,dnO,zi,rhoi)     !interp to temp var.
-  dnOiprev=dnOinext                       !save new pervious
-  dnOinext=reshape(parami,[lx1,lx2,lx3])    !overwrite next with new interpolated input
+  tmpinterp=dnO(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)     !interp to temp var.
+  dnOiprev=dnOinext                       !save new previous
+  dnOinext=reshape(parami,[lx1,lx2,lx3])  !overwrite next with new interpolated input
 
-  parami=interp2(zn,rhon,dnN2,zi,rhoi)
+  tmpinterp=dnN2(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)
   dnN2iprev=dnN2inext
   dnN2inext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,rhon,dnN2,zi,rhoi)
+  tmpinterp=dnO2(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)
   dnO2iprev=dnO2inext
   dnO2inext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,rhon,dvnrho,zi,rhoi)
+  tmpinterp=dvnrho(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)
   dvnrhoiprev=dvnrhoinext
   dvnrhoinext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,rhon,dvnz,zi,rhoi)
+  tmpinterp=dvnz(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)
   dvnziprev=dvnzinext
   dvnzinext=reshape(parami,[lx1,lx2,lx3])
 
-  parami=interp2(zn,rhon,dTn,zi,rhoi)
+  tmpinterp=dTn(:,1,:)
+  parami=interp2(zn,rhon,tmpinterp,zi,rhoi)
   dTniprev=dTninext
   dTninext=reshape(parami,[lx1,lx2,lx3])
 end if
@@ -752,7 +777,12 @@ if (myid==lid/2) then
   print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
 end if
 
-end subroutine spaceinterp_dneu
+
+!CLEAR ALLOCATED VARS
+deallocate(tmpinterp)
+
+
+end subroutine spaceinterp_dneu2D
 
 
 subroutine timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
