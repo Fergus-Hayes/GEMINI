@@ -26,16 +26,19 @@ real(wp), dimension(:), allocatable, private :: zn
 real(wp), dimension(:), allocatable, private :: xn    !for 3D cartesian interpolation
 integer, private :: lrhon,lzn,lyn,lxn
 
-!!full grid parameters
-real(wp), dimension(:), allocatable, private :: xnall
-real(wp), dimension(:), allocatable, private :: ynall
-integer, private :: lxnall,lynall
-
 
 !! STORAGE FOR NEUTRAL SIMULATION DATA.
 ! These will be singleton in the second dimension (longitude) in the case of 2D interpolation...
 !! THESE ARE INCLUDED AS MODULE VARIATIONS TO AVOID HAVING TO REALLOCATE AND DEALLOCIATE EACH TIME WE NEED TO INTERP
 real(wp), dimension(:,:,:), allocatable, private :: dnO,dnN2,dnO2,dvnrho,dvnz,dvnx,dTn
+
+
+!!full grid parameters for root to store input from files.
+real(wp), dimension(:), allocatable, private :: xnall
+real(wp), dimension(:), allocatable, private :: ynall
+integer, private :: lxnall,lynall
+
+real(wp), dimension(:,:,:), allocatable, private :: dnOall,dnN2all,dnO2all,dvnrhoall,dvnzall,dvnxall,dTnall
 
 
 !ARRAYS TO STORE NEUTRAL DATA THAT HAS BEEN INTERPOLATED
@@ -612,7 +615,7 @@ real(wp) :: tmpsca
 
 integer :: ix1,ix2,ix3,ihorzn,izn,iid,ierr
 real(wp), dimension(x%lx1,x%lx2,x%lx3) :: zimat,rhoimat,yimat,ximat
-
+real(wp) :: maxzn
 
 !Neutral source locations specified in input file, here referenced by spherical magnetic coordinates.
 phi1=meanlong*pi/180d0
@@ -677,7 +680,6 @@ do ix3=1,lx3
         xp=-1._wp*xp
       end if
       phip=atan2(yp,xp)
-
       ximat(ix1,ix2,ix3)=xp
       yimat(ix1,ix2,ix3)=yp
 
@@ -712,7 +714,7 @@ do ix3=1,lx3
       tmpsca=sum(tmpvec)
       proj_eyp_e3(ix1,ix2,ix3)=tmpsca
 
-      exprm=x%ephi(ix1,ix2,ix3,:)
+      exprm=x%ephi(ix1,ix2,ix3,:)   !for 3D interpolation need to have a unit vector/projection onto x-direction (longitude)
 
       tmpvec=exprm*x%e1(ix1,ix2,ix3,:)
       tmpsca=sum(tmpvec)
@@ -751,12 +753,20 @@ if (myid==0) then    !root
 
 
   !root must allocate space for the entire grid of input data - this might be doable one parameter at a time???
-  allocate(zn(lzn))    !these are module-scope variables
-  allocate(rhon(1))  !not used in Cartesian code so just set to something
-  allocate(xn(lxnall))
-  allocate(yn(lynall))
+  allocate(zn(lzn))        !the z coordinate is never split up in message passing - want to use full altitude range...
+  allocate(rhon(1))        !not used in Cartesian or 3D code so just set to something
+  allocate(xnall(lxnall))
+  allocate(ynall(lynall))
   allocate(dnOall(lzn,lxnall,lynall),dnN2all(lzn,lxnall,lynall),dnO2all(lzn,lxnall,lynall),dvnrhoall(lzn,lxnall,lynall), &
              dvnzall(lzn,lxnall,lynall),dvnxall(lzn,lxnall,lynall),dTnall(lzn,lxnall,lynall))
+
+
+  !calculate the z grid (same for all) and distribute to workers so we can figure out their x-y slabs
+  zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
+  do iid=1,lid
+    call mpi_send(lzn,1,MPI_INTEGER,iid,taglz,MPI_COMM_WORLD,ierr)
+    call mpi_send(zn,lzn,mpi_realprec,iid,tagzn,MPI_COMM_WORLD,ierr)
+  end do
 
 
   !Define a global neutral grid (input data) by assuming that the spacing is constant
@@ -766,32 +776,42 @@ if (myid==0) then    !root
   xnall=[ ((real(ixn,8)-1._wp)*dxn, ixn=1,lxnall) ]
   meanxn=sum(xnall,1)/size(xnall,1)
   xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
-  zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
   
   if (myid==0) then
-    print *, 'Creating neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall),maxval(ynall),minval(zn),maxval(zn)
+    print *, 'Creating full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall),maxval(ynall),minval(zn),maxval(zn)
   end if
   
 
   !calculate the extent of my piece of the grid using max altitude specified for the neutral grid
   
   
-  !receive extents of each of the other workers: extents(x,y,z)
+  !receive extents of each of the other workers: extents(lid,2,2,2)
 
 
   !find index into into neutral arrays for each worker:  indx(lid,2,2,2)
 
 
+  !store sizes for each worker slabsizes(lid,3); z-size will always be lzn...
+
+
   !send each worker the sizes for their particular chunk (all different)
   do iid=1,lid-1
-    call mpi_send(lhorzn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
-    call mpi_send(lzn,1,MPI_INTEGER,iid,taglz,MPI_COMM_WORLD,ierr)
+    call mpi_send(lyn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
+    call mpi_send(lxn,1,MPI_INTEGER,iid,taglxn,MPI_COMM_WORLD,ierr)
   end do
 
 
-  !send workers their parts of the neutral grids
+  !send workers their parts of the neutral grids so they can do interpolations
 else                 !workers
+  !get teh z-grid from root so we know what the max altitude we have to deal with will be
+  call mpi_recv(lzn,1,MPI_INTEGER,0,taglz,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  allocate(zn(lzn))
+  call mpi_recv(zn,lzn,mpi_realprec,0,tagzn,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  maxzn=maxval(zn)
+
+
   !calculate the extent of my grid
+  call slabrange(x,maxzn,xi,yi,maxxn,maxyn)   !returns the max xn and yn values that are needed for this slab
 
 
   !send to root
@@ -799,7 +819,6 @@ else                 !workers
 
   !receive my sizes from root
   call mpi_recv(lhorzn,1,MPI_INTEGER,0,taglrho,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
-  call mpi_recv(lzn,1,MPI_INTEGER,0,taglz,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
 
 
   !receive my parts of neutral grid from root
@@ -1157,6 +1176,26 @@ if (myid==lid/2 .and. debug) then
 end if
 
 end subroutine timeinterp_dneu
+
+
+subroutine slabrange(maxzn,ximat,yimat,zimat,maxxn,maxyn)
+
+!takes in a subgrid and the max altitude of interest for neutral interpolation and then computes
+!what the maximum xn and yn will be for that slab
+! ZZZ - needs to be adjusted for closed grid
+
+real(wp), intent(in) :: maxzn
+real(wp), dimension(:,:,:), intent(in) :: ximat,yimat
+real(wp), intent(out) :: maxxn,maxyn
+
+
+!four edges of slab that go along the x1 coordinate
+
+
+!pull out the x,y,z locations of the 8 vertices of my piece of the 3D grid
+
+
+end subroutine slabrange
 
 
 subroutine make_dneu()
