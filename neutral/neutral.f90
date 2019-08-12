@@ -4,11 +4,12 @@ use, intrinsic:: iso_fortran_env, only: sp => real32
 use mpi, only: mpi_integer, mpi_comm_world, mpi_status_ignore
 
 use phys_consts, only: wp, lnchem, pi, re, debug
-use grid, only: curvmesh, lx1, lx2, lx3, clear_unitvecs
+use grid, only: curvmesh, lx1, lx2, lx3, clear_unitvecs, gridflag
 use interpolation, only : interp2, interp3
 use io, only : date_filename
 use timeutils, only : doy_calc,dateinc
-use mpimod, only: myid, lid, taglrho, taglz, mpi_realprec, tagdno, tagdnn2, tagdno2, tagdtn, tagdvnrho, tagdvnz, tagly
+use mpimod, only: myid, lid, taglrho, taglz, mpi_realprec, tagdno, tagdnn2, tagdno2, tagdtn, tagdvnrho, tagdvnz, tagly, &
+                  taglx,tagxn,tagxnrange,tagynrange,tagyn,tagzn
 
 ! also links gtd7 from vendor/msis00/
 
@@ -43,14 +44,14 @@ real(wp), dimension(:,:,:), allocatable, private :: dnOall,dnN2all,dnO2all,dvnrh
 
 !ARRAYS TO STORE NEUTRAL DATA THAT HAS BEEN INTERPOLATED
 real(wp), dimension(:,:,:), allocatable, private :: dnOiprev,dnN2iprev,dnO2iprev,dvnrhoiprev,dvnziprev,dTniprev, &
-                                                   dvn1iprev,dvn2iprev,dvn3iprev
+                                                   dvn1iprev,dvn2iprev,dvn3iprev,dvnxiprev
 real(wp), private :: tprev
 integer, dimension(3), private :: ymdprev
 !! denoted time corresponding to "prev" interpolated data
 
 real(wp), private :: UTsecprev
 real(wp), dimension(:,:,:), allocatable, private :: dnOinext,dnN2inext,dnO2inext,dvnrhoinext,dvnzinext, &
-                                                   dTninext,dvn1inext,dvn2inext,dvn3inext
+                                                   dTninext,dvn1inext,dvn2inext,dvn3inext,dvnxinext
 real(wp), private :: tnext
 integer, dimension(3), private :: ymdnext
 real(wp), private :: UTsecnext
@@ -66,9 +67,9 @@ real(wp), dimension(:,:,:), allocatable, private :: proj_exp_e1,proj_exp_e2,proj
 real(wp), dimension(:), allocatable, private :: zi,yi,xi,rhoi    !this is to be a flat listing of sites on the, rhoi only used in axisymmetric and yi only in cartesian
 
 
-!USED FOR 3D INTERPOLATION WHERE WORKER DIVISIONS ARE COMPLICATED
-real(wp), dimension(:,:,:,:), private, allocatable :: extents    !roots array that is used to store min/max x,y,z of each works
-real(wp), dimension(:,:,:,:), private, allocatable :: indx       !roots array that contain indices for each workers needed piece of the neutral data
+!USED FOR 3D INTERPOLATION WHERE WORKER DIVISIONS ARE COMPLICATED (note that the first dim starts at zero so it matches mpi ID)
+real(wp), dimension(:,:), private, allocatable :: extents    !roots array that is used to store min/max x,y,z of each works
+integer, dimension(:,:), private, allocatable :: indx       !roots array that contain indices for each workers needed piece of the neutral data
 
 
 !! BASE MSIS ATMOSPHERIC STATE ON WHICH TO APPLY PERTURBATIONS
@@ -601,21 +602,24 @@ subroutine gridproj_dneu3D(dxn,dyn,dzn,meanlat,meanlong,neudir,x)
 real(wp), intent(in) :: dxn,dyn,dzn           !neutral grid spacing in horizontal "rho or y" and vertical directions
 real(wp), intent(in) :: meanlat, meanlong    !neutral source center location
 character(*), intent(in) :: neudir           !directory where neutral simulation data is kept
-logical, intent(in) :: flagcart              !whether or not the input data are to be interpreted as Cartesian
 type(curvmesh), intent(inout) :: x           !inout to allow deallocation of unit vectors once we are done with them, should consider exporting this to another functino to be called from main program to avoid having x writeable...
 
 real(wp) :: meanyn
+real(wp) :: meanxn
 
 integer :: inunit          !file handle for various input files
 character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_ffilename functinos
 real(wp) :: theta1,phi1,theta2,phi2,gammarads,theta3,phi3,gamma1,gamma2,phip
 real(wp) :: xp,yp
-real(wp), dimension(3) :: erhop,ezp,eyp,tmpvec
+real(wp), dimension(3) :: erhop,ezp,eyp,tmpvec,exprm
 real(wp) :: tmpsca
 
-integer :: ix1,ix2,ix3,ihorzn,izn,iid,ierr
+integer :: ix1,ix2,ix3,iyn,izn,ixn,iid,ierr
 real(wp), dimension(x%lx1,x%lx2,x%lx3) :: zimat,rhoimat,yimat,ximat
 real(wp) :: maxzn
+real(wp), dimension(2) :: xnrange,ynrange
+integer, dimension(6) :: indices
+
 
 !Neutral source locations specified in input file, here referenced by spherical magnetic coordinates.
 phi1=meanlong*pi/180d0
@@ -778,30 +782,51 @@ if (myid==0) then    !root
   xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
   
   if (myid==0) then
-    print *, 'Creating full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall),maxval(ynall),minval(zn),maxval(zn)
+    print *, 'Creating full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
+                maxval(ynall),minval(zn),maxval(zn)
   end if
   
 
   !calculate the extent of my piece of the grid using max altitude specified for the neutral grid
-  
-  
-  !receive extents of each of the other workers: extents(lid,2,2,2)
+  call slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
+  allocate(extents(0:lid-1,6),indx(0:lid-1,6)) 
+  extents(0,1:6)=[0._wp,maxzn,xnrange(1),xnrange(2),ynrange(1),ynrange(2)] 
 
 
-  !find index into into neutral arrays for each worker:  indx(lid,2,2,2)
-
-
-  !store sizes for each worker slabsizes(lid,3); z-size will always be lzn...
-
-
-  !send each worker the sizes for their particular chunk (all different)
+  !receive extents of each of the other workers: extents(lid,6)
   do iid=1,lid-1
-    call mpi_send(lyn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
-    call mpi_send(lxn,1,MPI_INTEGER,iid,taglxn,MPI_COMM_WORLD,ierr)
+    call mpi_recv(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)  
+    call mpi_recv(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)  
+    extents(iid,1:6)=[0._wp,maxzn,xnrange(1),xnrange(2),ynrange(1),ynrange(2)]     !need to store values as xnrange overwritten for each worker
   end do
 
 
-  !send workers their parts of the neutral grids so they can do interpolations
+  !find index into into neutral arrays for each worker:  indx(lid,6)
+  do iid=0,lid-1
+    call range2inds(extents(iid,1:6),xnall,ynall,zn,indices)
+    indx(iid,1:6)=indices
+  end do
+
+
+  !send each worker the sizes for their particular chunk (all different) and send worker that grid chunk
+  do iid=1,lid-1
+    lxn=indx(iid,4)-indx(iid,3)+1
+    lyn=indx(iid,6)-indx(iid,5)+1
+    call mpi_send(lyn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
+    call mpi_send(lxn,1,MPI_INTEGER,iid,taglx,MPI_COMM_WORLD,ierr)
+    xn=xnall(indx(iid,3):indx(iid,4))
+    yn=ynall(indx(iid,5):indx(iid,6))
+    call mpi_send(xn,lxn,mpi_realprec,iid,tagxn,MPI_COMM_WORLD,ierr)
+    call mpi_send(yn,lyn,mpi_realprec,iid,tagyn,MPI_COMM_WORLD,ierr)
+  end do
+
+
+  !have root store its part to the full neutral grid
+  lxn=indx(0,4)-indx(0,3)+1
+  lyn=indx(0,6)-indx(0,5)+1
+  allocate(xn(lxn),yn(lyn))
+  xn=xnall(indx(0,3):indx(0,4))
+  yn=ynall(indx(0,5):indx(0,6))
 else                 !workers
   !get teh z-grid from root so we know what the max altitude we have to deal with will be
   call mpi_recv(lzn,1,MPI_INTEGER,0,taglz,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
@@ -811,34 +836,30 @@ else                 !workers
 
 
   !calculate the extent of my grid
-  call slabrange(x,maxzn,xi,yi,maxxn,maxyn)   !returns the max xn and yn values that are needed for this slab
+  call slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
 
 
-  !send to root
+  !send ranges to root
+  call mpi_send(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,ierr)
+  call mpi_send(ynrange,2,mpi_realprec,iid,tagynrange,MPI_COMM_WORLD,ierr)
+  
 
-
-  !receive my sizes from root
-  call mpi_recv(lhorzn,1,MPI_INTEGER,0,taglrho,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
-
-
-  !receive my parts of neutral grid from root
+  !receive my sizes from root, allocate then receive my pieces of the grid
+  call mpi_recv(lxn,1,MPI_INTEGER,0,taglx,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(lyn,1,MPI_INTEGER,0,taglrho,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  allocate(xn(lxn),yn(lyn))
+  call mpi_recv(xn,lxn,mpi_realprec,0,tagxn,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(yn,lyn,mpi_realprec,0,tagyn,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
 end if
 
 
 !PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
-if (myid==0) then
-  if (flagcart) then
-    print *, 'Min/max yn,zn values',minval(yn),maxval(yn),minval(zn),maxval(zn)
-    print *, 'Min/max yi,zi values',minval(yi),maxval(yi),minval(zi),maxval(zi)
-  else
-    print *, 'Min/max rhon,zn values',minval(rhon),maxval(rhon),minval(zn),maxval(zn)
-    print *, 'Min/max rhoi,zi values',minval(rhoi),maxval(rhoi),minval(zi),maxval(zi)
-  end if
+  print *, 'Min/max yn,zn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
+  print *, 'Min/max yi,zi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
 
-  print *, 'Source lat/long:  ',meanlat,meanlong
-  print *, 'Plasma grid lat range:  ',minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
-  print *, 'Plasma grid lon range:  ',minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
-end if
+  print *, 'Source lat/long:  ',myid,meanlat,meanlong
+  print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+  print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
 
 end subroutine gridproj_dneu3D
 
@@ -1178,24 +1199,124 @@ end if
 end subroutine timeinterp_dneu
 
 
-subroutine slabrange(maxzn,ximat,yimat,zimat,maxxn,maxyn)
+subroutine slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
 
 !takes in a subgrid and the max altitude of interest for neutral interpolation and then computes
 !what the maximum xn and yn will be for that slab
 ! ZZZ - needs to be adjusted for closed grid
+! ZZZ - also this is specific to dipole grids right now...
 
 real(wp), intent(in) :: maxzn
-real(wp), dimension(:,:,:), intent(in) :: ximat,yimat
-real(wp), intent(out) :: maxxn,maxyn
+real(wp), dimension(:,:,:), intent(in) :: ximat,yimat,zimat
+real(wp), dimension(2), intent(out) :: xnrange,ynrange     !for min and max
+
+real(wp), dimension(:,:,:), allocatable :: xitmp,yitmp,zitmp
+integer :: lx1tmp
+integer, dimension(size(ximat,2),size(ximat,3)) :: ix1stmp
+integer :: ix1tmp
+logical :: flagSH
+integer :: ix1
 
 
-!four edges of slab that go along the x1 coordinate
+!peel the grid in half (source hemisphere if closed dipole)
+if (gridflag==0) then    !closed dipole grid
+  lx1tmp=lx1/2           !note use of integer division here...
+  allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers?
+
+  !middle of x-y grid assumed to be zero (viz. centered on the neutral source)
+  ix1stmp=minloc(ximat,1)   !x1 indices where the x-distance from the source is minimum
+  ix1tmp=minval(ix1stmp)    !x1 index of the minimum distance from epicenter  
+  if (ix1tmp<lx1tmp) then
+    flagSH=.true.              !source is on the lower x1 indices so southern
+    xitmp=ximat(1:lx1tmp,1:lx2,1:lx3)    !select beginning of the array
+    yitmp=yimat(1:lx1tmp,1:lx2,1:lx3)
+    zitmp=zimat(1:lx1tmp,1:lx2,1:lx3)
+    print*, '...While sorting workers found a souce in the SOUTHERN HEMISPHERE...'
+  else
+    flagSH=.false.
+    xitmp=ximat(lx1tmp:lx1,1:lx2,1:lx3)    !select end half of the array, maybe getting a small piece of SH, hopefully doesn't matter
+    yitmp=yimat(lx1tmp:lx1,1:lx2,1:lx3)
+    zitmp=zimat(lx1tmp:lx1,1:lx2,1:lx3)
+    print*, '...While sorting workers found a soure in the NOTHERN HEMISPHERE...'
+  end if
+else
+  lx1tmp=lx1
+  allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers?
+  xitmp=ximat(1:lx1,1:lx2,1:lx3)
+end if
 
 
-!pull out the x,y,z locations of the 8 vertices of my piece of the 3D grid
+!the min and max x are simply determined by longitude...
+xnrange(1)=minval(xitmp)
+xnrange(2)=maxval(xitmp)
 
+
+!situation is more complicated for latitude due to dipole grid, need to determine by L-shell
+if (flagSH) then
+  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0
+  ynrange(1)=yitmp(ix1,1,1)
+  ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
+  ynrange(2)=yitmp(ix1,lx2,1)
+else    !things are swapped around in NH
+  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0
+  ynrange(2)=yitmp(ix1,1,1)
+  ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
+  ynrange(1)=yitmp(ix1,lx2,1)
+end if
 
 end subroutine slabrange
+
+
+subroutine range2inds(ranges,zn,xnall,ynall,indices)
+
+!fiure out where the slab described by ranges falls within the global neutral grid
+
+real(wp), dimension(6), intent(in) :: ranges
+real(wp), dimension(:), intent(in) :: zn,xnall,ynall
+integer, dimension(6), intent(out) :: indices
+
+real(wp) :: minzn,maxzn,minxn,maxxn,minyn,maxyn
+integer :: ixn,iyn
+
+
+!for clarity
+minzn=ranges(1)
+maxzn=ranges(2)
+minxn=ranges(3)
+maxxn=ranges(4)
+minyn=ranges(5)
+maxyn=ranges(6)
+
+
+!always use the full z-range
+indices(1)=1
+indices(2)=lzn
+
+
+!x-range
+ixn=1
+do while (ixn<lxnall .and. xnall(ixn)<minxn)
+  ixn=ixn+1
+end do
+indices(3)=ixn-1    !just to be sure go back one index so that we cover the min range
+do while (ixn<lxnall .and. xnall(ixn)<maxxn)
+  ixn=ixn+1
+end do
+indices(4)=ixn
+
+
+!y-range
+iyn=1
+do while (iyn<lynall .and. ynall(iyn)<minyn)
+  iyn=iyn+1
+end do
+indices(5)=iyn-1    !just to be sure go back one indey so that we cover the min range
+do while (iyn<lynall .and. ynall(iyn)<maxyn)
+  iyn=iyn+1
+end do
+indices(6)=iyn
+
+end subroutine range2inds
 
 
 subroutine make_dneu()
@@ -1213,9 +1334,11 @@ allocate(proj_exp_e1(lx1,lx2,lx3),proj_exp_e2(lx1,lx2,lx3),proj_exp_e3(lx1,lx2,l
 allocate(dnOiprev(lx1,lx2,lx3),dnN2iprev(lx1,lx2,lx3),dnO2iprev(lx1,lx2,lx3),dvnrhoiprev(lx1,lx2,lx3), &
          dvnziprev(lx1,lx2,lx3),dTniprev(lx1,lx2,lx3),dvn1iprev(lx1,lx2,lx3),dvn2iprev(lx1,lx2,lx3), &
          dvn3iprev(lx1,lx2,lx3))
+allocate(dvnxiprev(lx1,lx2,lx3))
 allocate(dnOinext(lx1,lx2,lx3),dnN2inext(lx1,lx2,lx3),dnO2inext(lx1,lx2,lx3),dvnrhoinext(lx1,lx2,lx3), &
          dvnzinext(lx1,lx2,lx3),dTninext(lx1,lx2,lx3),dvn1inext(lx1,lx2,lx3),dvn2inext(lx1,lx2,lx3), &
          dvn3inext(lx1,lx2,lx3))
+allocate(dvnxinext(lx1,lx2,lx3))
 allocate(nnmsis(lx1,lx2,lx3,lnchem),Tnmsis(lx1,lx2,lx3),vn1base(lx1,lx2,lx3),vn2base(lx1,lx2,lx3),vn3base(lx1,lx2,lx3))
 
 !start everyone out at zero
@@ -1228,8 +1351,10 @@ proj_eyp_e1=0d0; proj_eyp_e2=0d0; proj_eyp_e3=0d0;
 proj_exp_e1=0d0; proj_exp_e2=0d0; proj_exp_e3=0d0;
 dnOiprev=0d0; dnN2iprev=0d0; dnO2iprev=0d0; dTniprev=0d0; dvnrhoiprev=0d0; dvnziprev=0d0;
 dvn1iprev=0d0; dvn2iprev=0d0; dvn3iprev=0d0;
+dvnxiprev=0d0
 dnOinext=0d0; dnN2inext=0d0; dnO2inext=0d0; dTninext=0d0; dvnrhoinext=0d0; dvnzinext=0d0;
 dvn1inext=0d0; dvn2inext=0d0; dvn3inext=0d0;
+dvnxinext=0d0
 nnmsis=0d0; Tnmsis=0d0; vn1base=0d0; vn2base=0d0; vn3base=0d0
 
 !now initialize some module variables
@@ -1255,6 +1380,19 @@ if (allocated(zn) ) then    !if one is allocated, then they all are
   deallocate(rhon,zn)
   deallocate(yn)
   deallocate(dnO,dnN2,dnO2,dvnrho,dvnz,dTn)
+end if
+if (allocated(extents)) then
+  deallocate(extents,indx)
+end if
+if (allocated(dvnx)) then
+  deallocate(dvnx)
+end if
+if (allocated(xn)) then
+  deallocate(xn)
+end if
+if (allocated(xnall)) then
+  deallocate(xnall,ynall)
+  deallocate(dnOall,dnN2all,dnO2all,dvnxall,dvnrhoall,dvnzall,dTnall)
 end if
 
 end subroutine clear_dneu
