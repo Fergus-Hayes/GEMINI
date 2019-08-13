@@ -82,6 +82,7 @@ public :: Tnmsis, neutral_atmos, make_dneu, clear_dneu, neutral_perturb
 
 contains
 
+
 subroutine neutral_atmos(ymd,UTsecd,glat,glon,alt,activ,nn,Tn)
 
 !------------------------------------------------------------
@@ -169,15 +170,15 @@ end subroutine neutral_atmos
 
 
 !THIS IS  WRAPPER FOR THE NEUTRAL PERTURBATION CODES THAT DO EITHER
-!AXISYMMETRIC OR CARTESIAN INTEGRATION
-subroutine neutral_perturb(interptype,dt,dtneu,t,ymd,UTsec,neudir,drhon,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
+!AXISYMMETRIC OR CARTESIAN OR 3D INTERPOLATION
+subroutine neutral_perturb(interptype,dt,dtneu,t,ymd,UTsec,neudir,dxn,drhon,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
 
 integer, intent(in) :: interptype
 real(wp), intent(in) :: dt,dtneu
 real(wp), intent(in) :: t
 integer, dimension(3), intent(in) :: ymd     !date for which we wish to calculate perturbations
 real(wp), intent(in) :: UTsec
-real(wp), intent(in) :: drhon,dzn            !neutral grid spacing
+real(wp), intent(in) :: dxn,drhon,dzn            !neutral grid spacing
 real(wp), intent(in) :: meanlat, meanlong    !neutral source center location
 character(*), intent(in) :: neudir           !directory where neutral simulation data is kept
 
@@ -186,10 +187,14 @@ real(wp), dimension(:,:,:,:), intent(out) :: nn   !neutral params interpolated t
 real(wp), dimension(:,:,:), intent(out) :: Tn,vn1,vn2,vn3
 
 
-if (interptype==0) then    !cartesian interpolation drho inputs (radial distance) will be interpreted as dy (horizontal distance)
+if (interptype==0) then                           !cartesian interpolation drho inputs (radial distance) will be interpreted as dy (horizontal distance)
   call neutral_perturb_cart(dt,dtneu,t,ymd,UTsec,neudir,drhon,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
-else     !axisymmetric interpolation
+else if (interptype==1) then                      !axisymmetric interpolation
   call neutral_perturb_axisymm(dt,dtneu,t,ymd,UTsec,neudir,drhon,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
+else if (interptype==3) then                      !3D interpolation drhon is takent to be dyn (northward distance)
+  call neutral_perturb_3D(dt,dtneu,t,ymd,UTsec,neudir,dxn,drhon,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
+else
+  error stop '...Invalid interpolation type specified from input file...'
 end if
 
 end subroutine neutral_perturb
@@ -364,6 +369,90 @@ vn3=vn2base+dvn2inow
 vn3=vn3base+dvn3inow
 
 end subroutine neutral_perturb_cart
+
+
+subroutine neutral_perturb_3D(dt,dtneu,t,ymd,UTsec,neudir,dxn,dyn,dzn,meanlat,meanlong,x,nn,Tn,vn1,vn2,vn3)
+
+!------------------------------------------------------------
+!-------COMPUTE NEUTRAL PERTURBATIONS FOR THIS TIME STEP.  ADD
+!-------THEM TO MSIS PERTURBATIONS TO GET ABSOLUTE VALUES FOR
+!-------EACH PARAMETER.
+!-------
+!-------THIS VERSION ASSUMES THE INPUT NEUTRAL DATA ARE IN
+!-------CARTESIAN COORDINATES AND IN THREE DIMENSIONS.
+!------------------------------------------------------------
+
+real(wp), intent(in) :: dt,dtneu
+real(wp), intent(in) :: t
+integer, dimension(3), intent(in) :: ymd    !date for which we wish to calculate perturbations
+real(wp), intent(in) :: UTsec
+real(wp), intent(in) :: dxn,dyn,dzn         !neutral grid spacing
+real(wp), intent(in) :: meanlat, meanlong    !neutral source center location
+character(*), intent(in) :: neudir       !directory where neutral simulation data is kept
+
+type(curvmesh), intent(inout) :: x         !grid structure  (inout becuase we want to be able to deallocate unit vectors once we are done with them)
+real(wp), dimension(:,:,:,:), intent(out) :: nn   !neutral params interpolated to plasma grid at requested time
+real(wp), dimension(:,:,:), intent(out) :: Tn,vn1,vn2,vn3
+
+integer :: inunit          !file handle for various input files
+character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_ffilename functinos
+
+integer :: ix1,ix2,ix3,iid
+integer, dimension(3) :: ymdtmp
+real(wp) :: UTsectmp
+real(wp), dimension(size(nn,1),size(nn,2),size(nn,3)) :: dnOinow,dnN2inow,dnO2inow,dTninow,dvn1inow,dvn2inow,dvn3inow    !current time step perturbations (centered in time)
+
+
+!CHECK WHETHER WE NEED TO LOAD A NEW FILE
+if (t+dt/2d0>=tnext .or. t<=0d0) then
+  !IF FIRST LOAD ATTEMPT CREATE A NEUTRAL GRID AND COMPUTE GRID SITES FOR IONOSPHERIC GRID.  Since this needs an input file, I'm leaving it under this condition here
+  if (.not. allocated(zn)) then     !means this is the first tiem we've tried to load neutral simulation data, should we check for a previous neutral file to load???
+    !initialize dates
+    ymdprev=ymd
+    UTsecprev=UTsec
+    ymdnext=ymdprev
+    UTsecnext=UTsecprev
+
+    !Create a neutral grid, do some allocations and projections
+    call gridproj_dneu3D(dxn,dyn,dzn,meanlat,meanlong,neudir,x)    !set true to denote Cartesian...
+  end if
+
+  !Read in neutral data from a file
+  call read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp)
+
+  !Spatial interpolatin for the frame we just read in
+  if (myid==0) then
+    print *, 'Spatial interpolation and rotation of vectors for date:  ',ymdtmp,' ',UTsectmp
+  end if
+  call spaceinterp_dneu3D()
+
+  !UPDATE OUR CONCEPT OF PREVIOUS AND NEXT TIMES
+  tprev=tnext
+  UTsecprev=UTsecnext
+  ymdprev=ymdnext
+
+  tnext=tprev+dtneu
+  UTsecnext=UTsectmp
+  ymdnext=ymdtmp
+end if
+
+!Interpolation in time
+call timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
+
+!NOW UPDATE THE PROVIDED NEUTRAL ARRAYS
+nn(:,:,:,1)=nnmsis(:,:,:,1)+dnOinow
+nn(:,:,:,2)=nnmsis(:,:,:,2)+dnN2inow
+nn(:,:,:,3)=nnmsis(:,:,:,3)+dnO2inow
+nn(:,:,:,1)=max(nn(:,:,:,1),1._wp)
+nn(:,:,:,2)=max(nn(:,:,:,2),1._wp)
+nn(:,:,:,3)=max(nn(:,:,:,3),1._wp)
+Tn=Tnmsis+dTninow
+Tn=max(Tn,51._wp)
+vn2=vn1base+dvn1inow
+vn3=vn2base+dvn2inow
+vn3=vn3base+dvn3inow
+
+end subroutine neutral_perturb_3D
 
 
 subroutine gridproj_dneu2D(dhorzn,dzn,meanlat,meanlong,neudir,flagcart,x)
@@ -609,7 +698,7 @@ real(wp) :: meanyn
 real(wp) :: meanxn
 
 integer :: inunit          !file handle for various input files
-character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_ffilename functinos
+character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_filename functions which is kind of a kludge...
 real(wp) :: theta1,phi1,theta2,phi2,gammarads,theta3,phi3,gamma1,gamma2,phip
 real(wp) :: xp,yp
 real(wp), dimension(3) :: erhop,ezp,eyp,tmpvec,exprm
@@ -623,8 +712,8 @@ integer, dimension(6) :: indices
 
 
 !Neutral source locations specified in input file, here referenced by spherical magnetic coordinates.
-phi1=meanlong*pi/180d0
-theta1=pi/2d0-meanlat*pi/180d0
+phi1=meanlong*pi/180._wp
+theta1=pi/2._wp-meanlat*pi/180._wp
 
 
 !Convert plasma simulation grid locations to z,rho values to be used in interoplation.  altitude ~ zi; lat/lon --> rhoi.  Also compute unit vectors and projections
@@ -738,12 +827,12 @@ end do
 
 
 !Assign values for flat lists of grid points
-zi=pack(zimat,.true.)     !create a flat list of grid points to be used by interpolation ffunctions
+zi=pack(zimat,.true.)     !create a flat list of grid points to be used by interpolation functions
 yi=pack(yimat,.true.)
 xi=pack(ximat,.true.)
 
 
-!GRID UNIT VECTORS NO LONGER NEEDED ONCE PROJECTIONS ARE CALCULATED...
+!GRID UNIT VECTORS NO LONGER NEEDED ONCE PROJECTIONS ARE CALCULATED, so go ahead and free some space
 call clear_unitvecs(x)
 
 
@@ -759,15 +848,15 @@ if (myid==0) then    !root
 
   !root must allocate space for the entire grid of input data - this might be doable one parameter at a time???
   allocate(zn(lzn))        !the z coordinate is never split up in message passing - want to use full altitude range...
-  allocate(rhon(1))        !not used in Cartesian or 3D code so just set to something
+  allocate(rhon(1))        !not used in Cartesian or 3D code so just set to something; could likely be left unallocated
   allocate(xnall(lxnall))
   allocate(ynall(lynall))
   allocate(dnOall(lzn,lxnall,lynall),dnN2all(lzn,lxnall,lynall),dnO2all(lzn,lxnall,lynall),dvnrhoall(lzn,lxnall,lynall), &
-             dvnzall(lzn,lxnall,lynall),dvnxall(lzn,lxnall,lynall),dTnall(lzn,lxnall,lynall))
+             dvnzall(lzn,lxnall,lynall),dvnxall(lzn,lxnall,lynall),dTnall(lzn,lxnall,lynall))    !ZZZ - note that these might be deallocated after each read to clean up memory management a bit...
 
 
   !calculate the z grid (same for all) and distribute to workers so we can figure out their x-y slabs
-  zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]
+  zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]    !root calculates and distributes but this is the same for all workers - assmes that the max neutral grid extent in altitude is always less than the plasma grid (should almost always be true)
   do iid=1,lid
     call mpi_send(lzn,1,MPI_INTEGER,iid,taglz,MPI_COMM_WORLD,ierr)
     call mpi_send(zn,lzn,mpi_realprec,iid,tagzn,MPI_COMM_WORLD,ierr)
@@ -781,7 +870,6 @@ if (myid==0) then    !root
   xnall=[ ((real(ixn,8)-1._wp)*dxn, ixn=1,lxnall) ]
   meanxn=sum(xnall,1)/size(xnall,1)
   xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
-  
   if (myid==0) then
     print *, 'Creating full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
                 maxval(ynall),minval(zn),maxval(zn)
@@ -949,7 +1037,7 @@ end if
 end subroutine read_dneu2D
 
 
-subroutine read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
+subroutine read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp)
 
 ! This subroutine reads in neutral frame data, if necessary and puts the results
 ! in a module-scope variable for later use
@@ -959,7 +1047,6 @@ real(wp), intent(in) :: tprev,tnext,t,dtneu,dt        !times of previous input f
 character(*), intent(in) :: neudir                    !directory where neutral simulation data is kept
 integer, dimension(3), intent(out) :: ymdtmp          !storage space for incrementing date without overwriting ymdnext...
 real(wp), intent(out) :: UTsectmp
-logical, intent(in) :: flagcart
 
 integer :: inunit          !file handle for various input files
 integer :: iid,ierr
@@ -968,11 +1055,7 @@ integer :: lhorzn                        !number of horizontal grid points
 real(wp), dimension(:,:,:), allocatable :: parmtmp    !temporary resizable space for subgrid neutral data
 
 
-if (flagcart) then
-  lhorzn=lyn
-else
-  lhorzn=lrhon
-end if
+lhorzn=lyn
 
 
 if (myid==0) then    !root
@@ -1025,7 +1108,7 @@ if (myid==0) then    !root
     deallocate(parmtmp)
   end do
 
-  !root needs to grab its piece
+  !root needs to grab its piece of data
   dnO=dnOall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
   dnN2=dnN2all(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
   dnO2=dnO2all(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
@@ -1033,7 +1116,6 @@ if (myid==0) then    !root
   dvnrho=dvnrhoall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
   dvnz=dvnzall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
   dvnx=dvnxall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
-
 else     !workers
   !receive a full copy of the data from root
   call mpi_recv(dnO,lzn*lxn*lyn,mpi_realprec,0,tagdnO,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
@@ -1263,7 +1345,7 @@ end subroutine spaceinterp_dneu3D
 
 subroutine timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
 
-!interpolatino in time - no sensitive to dimensionality of the input neutral data so this can be
+!interpolation in time - no sensitive to dimensionality of the input neutral data so this can be
 ! the same for 2D vs. 3D
 
 real(wp), intent(in) :: t,dt
@@ -1320,7 +1402,6 @@ subroutine slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
 
 !takes in a subgrid and the max altitude of interest for neutral interpolation and then computes
 !what the maximum xn and yn will be for that slab
-! ZZZ - needs to be adjusted for closed grid
 ! ZZZ - also this is specific to dipole grids right now...
 
 real(wp), intent(in) :: maxzn
@@ -1337,29 +1418,36 @@ integer :: ix1
 
 !peel the grid in half (source hemisphere if closed dipole)
 if (gridflag==0) then    !closed dipole grid
-  lx1tmp=lx1/2           !note use of integer division here...
-  allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers?
+  lx1tmp=lx1/2           !note use of integer division here...  This is the size of the half-grid, viz. one hemisphere of the grid
+  allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers; I'm always unsure of whether "target" needs to be specified (maybe not for allocated memory???)
 
   !middle of x-y grid assumed to be zero (viz. centered on the neutral source)
-  ix1stmp=minloc(ximat,1)   !x1 indices where the x-distance from the source is minimum
-  ix1tmp=minval(ix1stmp)    !x1 index of the minimum distance from epicenter  
-  if (ix1tmp<lx1tmp) then
-    flagSH=.true.              !source is on the lower x1 indices so southern
-    xitmp=ximat(1:lx1tmp,1:lx2,1:lx3)    !select beginning of the array
+  ix1stmp=minloc(ximat,1,ximat>0._wp)   !x1 indices where the x-distance from the source is minimum, but still larger than zero 
+  ix1tmp=minval(ix1stmp)                !x1 index of the minimum distance from epicenter (other indices not needed here) 
+  if (ix1tmp<lx1tmp) then               !source location is less than halfway into grid => southern hemisphere
+    flagSH=.true.                        !source is on the lower x1 indices so southern
+    xitmp=ximat(1:lx1tmp,1:lx2,1:lx3)    !select beginning of the array - the southern half
     yitmp=yimat(1:lx1tmp,1:lx2,1:lx3)
     zitmp=zimat(1:lx1tmp,1:lx2,1:lx3)
     print*, '...While sorting workers found a souce in the SOUTHERN HEMISPHERE...'
-  else
+  else                                     !not southern hemisphere so must be northern
     flagSH=.false.
-    xitmp=ximat(lx1tmp:lx1,1:lx2,1:lx3)    !select end half of the array, maybe getting a small piece of SH, hopefully doesn't matter
-    yitmp=yimat(lx1tmp:lx1,1:lx2,1:lx3)
-    zitmp=zimat(lx1tmp:lx1,1:lx2,1:lx3)
+    if (lx1tmp==lx1-lx1tmp) then             !north half is exactly half the entire grid
+      xitmp=ximat(lx1tmp+1:lx1,1:lx2,1:lx3)    !select end half of the array
+      yitmp=yimat(lx1tmp+1:lx1,1:lx2,1:lx3)
+      zitmp=zimat(lx1tmp+1:lx1,1:lx2,1:lx3)
+    else                                     !if not half, must be smaller by one grid point
+      xitmp=ximat(lx1tmp+2:lx1,1:lx2,1:lx3)  !had an odd number of points along the field line, chop off the apex point - hopefully doesn't cause issues...
+      yitmp=yimat(lx1tmp+2:lx1,1:lx2,1:lx3)
+      zitmp=zimat(lx1tmp+2:lx1,1:lx2,1:lx3)      
+    end if
     print*, '...While sorting workers found a soure in the NOTHERN HEMISPHERE...'
   end if
-else
+else     !this is not a dipole grid so our approach is simpler
   lx1tmp=lx1
   allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers?
   xitmp=ximat(1:lx1,1:lx2,1:lx3)
+  flagSH=.true.    !treat is as southern, doesn't really matter in this case...
 end if
 
 
@@ -1370,7 +1458,7 @@ xnrange(2)=maxval(xitmp)
 
 !situation is more complicated for latitude due to dipole grid, need to determine by L-shell
 if (flagSH) then
-  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0
+  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0, just use the first longitude slice since they will all have the same L-shell-field line relations
   ynrange(1)=yitmp(ix1,1,1)
   ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
   ynrange(2)=yitmp(ix1,lx2,1)
@@ -1386,7 +1474,7 @@ end subroutine slabrange
 
 subroutine range2inds(ranges,zn,xnall,ynall,indices)
 
-!fiure out where the slab described by ranges falls within the global neutral grid
+!determine where the slab described by ranges falls within the global neutral grid
 
 real(wp), dimension(6), intent(in) :: ranges
 real(wp), dimension(:), intent(in) :: zn,xnall,ynall
@@ -1415,7 +1503,7 @@ ixn=1
 do while (ixn<lxnall .and. xnall(ixn)<minxn)
   ixn=ixn+1
 end do
-indices(3)=ixn-1    !just to be sure go back one index so that we cover the min range
+indices(3)=min(ixn-1,1)    !just to be sure go back one index so that we cover the min range, don't let index fall below zero
 do while (ixn<lxnall .and. xnall(ixn)<maxxn)
   ixn=ixn+1
 end do
@@ -1427,11 +1515,14 @@ iyn=1
 do while (iyn<lynall .and. ynall(iyn)<minyn)
   iyn=iyn+1
 end do
-indices(5)=iyn-1    !just to be sure go back one indey so that we cover the min range
+indices(5)=min(iyn-1,1)    !just to be sure go back one index so that we cover the min range
 do while (iyn<lynall .and. ynall(iyn)<maxyn)
   iyn=iyn+1
 end do
 indices(6)=iyn
+
+
+!corner cases - range is not at all within the neutral grid...  Manifests as both indices being either 1 or lxi, interpolation should zero these out...
 
 end subroutine range2inds
 

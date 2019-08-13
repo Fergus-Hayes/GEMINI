@@ -59,7 +59,7 @@ do ix1i=1,lx1i
     slope=(f(ix1)-f(ix1-1))/(x1(ix1)-x1(ix1-1))
     interp1(ix1i)=f(ix1-1)+slope*(x1i(ix1i)-x1(ix1-1))
   else
-    interp1(ix1i)=0
+    interp1(ix1i)=0._wp
   end if
 end do
 
@@ -68,7 +68,7 @@ end do
 !WORKAROUND UNTIL I CAN PIN DOWN THE EXACT PROBLEM
 do ix1i=1,lx1i
   if(x1i(ix1i)<x1(1) .or. x1i(ix1i)>x1(lx1)) then
-    interp1(ix1i)=0
+    interp1(ix1i)=0._wp
   end if
 end do
 
@@ -162,7 +162,7 @@ do ixi=1,lxi
     slope=(fx1ix2next-fx1ix2prev)/(x2(ix2)-x2(ix2-1))
     interp2(ixi)=fx1ix2prev+slope*(x2i(ixi)-x2(ix2-1))
   else
-    interp2(ixi)=0
+    interp2(ixi)=0._wp
   end if
 end do
 
@@ -170,7 +170,7 @@ end do
 !THERE IS SOME ISSUE WITH POINTS OUTSIDE INTERPOLANT DOMAIN - THIS IS A WORKAROUND UNTIL I CAN PIN DOWN THE EXACT PROBLEM
 do ixi=1,lxi
 if(x1i(ixi)<x1(1) .or. x1i(ixi)>x1(lx1) .or. x2i(ixi)<x2(1) .or. x2i(ixi)>x2(lx2)) then
-  interp2(ixi)=0
+  interp2(ixi)=0._wp
 end if
 end do
 
@@ -315,7 +315,7 @@ end do
 !THERE IS SOME ISSUE WITH POINTS OUTSIDE INTERPOLANT DOMAIN - THIS IS A WORKAROUND UNTIL I CAN PIN DOWN THE EXACT PROBLEM
 do ixi=1,lxi
 if(x1i(ixi)<x1(1) .or. x1i(ixi)>x1(lx1) .or. x2i(ixi)<x2(1) .or. x2i(ixi)>x2(lx2) .or. x3i(ixi)<x3(1) .or. &
-   x3i(ixi)>x3(lx3) ) then
+   x3i(ixi)>x3(lx3) .or. lx1==1 .or. lx2==1 .or. lx3==1) then     !also cover the case where there is a singleton dimension...
   interp3(ixi)=0._wp
 end if
 end do

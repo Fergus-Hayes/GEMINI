@@ -23,7 +23,7 @@ contains
 
 subroutine read_configfile(infile,ymd,UTsec0,tdur,dtout,activ,tcfl,Teinf,potsolve,flagperiodic, &
                  flagoutput,flagcap,indatsize,indatgrid,flagdneu,interptype, &
-                 sourcemlat,sourcemlon,dtneu,drhon,dzn,sourcedir,flagprecfile,dtprec,precdir, &
+                 sourcemlat,sourcemlon,dtneu,dxn,drhon,dzn,sourcedir,flagprecfile,dtprec,precdir, &
                  flagE0file,dtE0,E0dir,flagglow,dtglow,dtglowout)
 !! READS THE INPUT CONFIGURAITON FILE ANDE ASSIGNS VARIABLES FOR FILENAMES, SIZES, ETC.
 
@@ -41,7 +41,7 @@ integer, intent(out) :: flagdneu
 integer, intent(out) :: interptype
 real(wp), intent(out) :: sourcemlat,sourcemlon
 real(wp), intent(out) :: dtneu
-real(wp), intent(out) :: drhon,dzn
+real(wp), intent(out) :: dxn,drhon,dzn
 integer, intent(out) :: flagprecfile
 real(wp), intent(out) :: dtprec
 character(:), allocatable, intent(out) :: indatsize,indatgrid, sourcedir, precdir, E0dir
@@ -96,7 +96,12 @@ if( flagdneu==1) then
   read(u,*) interptype
   read(u,*) sourcemlat,sourcemlon
   read(u,*) dtneu
-  read(u,*) drhon,dzn
+  if (interptype==3) then     !read in extra dxn if 3D
+    read(u,*) dxn,drhon,dzn
+  else
+    read(u,*) drhon,dzn
+    dxn=0._wp
+  end if
   read(u,'(A256)') buf
   sourcedir = expanduser(buf)
   if (myid ==0) then
