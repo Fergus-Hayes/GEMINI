@@ -86,7 +86,7 @@ integer, parameter :: tagAur=96
 
 integer, parameter :: tagTninf=98
 integer, parameter :: tagxnrange=99,tagynrange=104
-integer, parameter :: taglx=105,tagxn=106,tagyn=107,tagzn=108
+integer, parameter :: taglx=105,tagxn=106,tagyn=107,tagzn=108,tagdvnx=109
 
 
 !> VARIABLES REUSED BY ALL WORKERS AND USING MODULES

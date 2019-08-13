@@ -9,7 +9,7 @@ use interpolation, only : interp2, interp3
 use io, only : date_filename
 use timeutils, only : doy_calc,dateinc
 use mpimod, only: myid, lid, taglrho, taglz, mpi_realprec, tagdno, tagdnn2, tagdno2, tagdtn, tagdvnrho, tagdvnz, tagly, &
-                  taglx,tagxn,tagxnrange,tagynrange,tagyn,tagzn
+                  taglx,tagxn,tagxnrange,tagynrange,tagyn,tagzn,tagdvnx
 
 ! also links gtd7 from vendor/msis00/
 
@@ -70,6 +70,7 @@ real(wp), dimension(:), allocatable, private :: zi,yi,xi,rhoi    !this is to be 
 !USED FOR 3D INTERPOLATION WHERE WORKER DIVISIONS ARE COMPLICATED (note that the first dim starts at zero so it matches mpi ID)
 real(wp), dimension(:,:), private, allocatable :: extents    !roots array that is used to store min/max x,y,z of each works
 integer, dimension(:,:), private, allocatable :: indx       !roots array that contain indices for each workers needed piece of the neutral data
+integer, dimension(:,:), private, allocatable :: slabsizes
 
 
 !! BASE MSIS ATMOSPHERIC STATE ON WHICH TO APPLY PERTURBATIONS
@@ -243,7 +244,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then   !negative time means that we need to loa
   end if
 
   !Read in neutral data from a file
-  call read_dneu(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,.false.)
+  call read_dneu2D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,.false.)
 
   !Spatial interpolatin for the frame we just read in
   if (myid==0) then
@@ -328,7 +329,7 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
   end if
 
   !Read in neutral data from a file
-  call read_dneu(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,.true.)
+  call read_dneu2D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,.true.)
 
   !Spatial interpolatin for the frame we just read in
   if (myid==0) then
@@ -802,6 +803,7 @@ if (myid==0) then    !root
 
 
   !find index into into neutral arrays for each worker:  indx(lid,6)
+  allocate(indx(lid,6))
   do iid=0,lid-1
     call range2inds(extents(iid,1:6),xnall,ynall,zn,indices)
     indx(iid,1:6)=indices
@@ -809,9 +811,11 @@ if (myid==0) then    !root
 
 
   !send each worker the sizes for their particular chunk (all different) and send worker that grid chunk
+  allocate(slabsizes(lid,2))
   do iid=1,lid-1
     lxn=indx(iid,4)-indx(iid,3)+1
     lyn=indx(iid,6)-indx(iid,5)+1
+    slabsizes(iid,1:2)=[lxn,lyn]
     call mpi_send(lyn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
     call mpi_send(lxn,1,MPI_INTEGER,iid,taglx,MPI_COMM_WORLD,ierr)
     xn=xnall(indx(iid,3):indx(iid,4))
@@ -824,6 +828,7 @@ if (myid==0) then    !root
   !have root store its part to the full neutral grid
   lxn=indx(0,4)-indx(0,3)+1
   lyn=indx(0,6)-indx(0,5)+1
+  slabsizes(0,1:2)=[lxn,lyn]
   allocate(xn(lxn),yn(lyn))
   xn=xnall(indx(0,3):indx(0,4))
   yn=ynall(indx(0,5):indx(0,6))
@@ -864,11 +869,11 @@ end if
 end subroutine gridproj_dneu3D
 
 
-subroutine read_dneu(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
+subroutine read_dneu2D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
 
 ! This subroutine reads in neutral frame data, if necessary and puts the results
 ! in a module-scope variable for later use
-! I think this will work in 2d or 3d...  will try...
+! This version is for 2D source neutral data
 
 real(wp), intent(in) :: tprev,tnext,t,dtneu,dt        !times of previous input frame,next frame and then current time
 character(*), intent(in) :: neudir                    !directory where neutral simulation data is kept
@@ -941,7 +946,118 @@ if (myid==lid/2) then
   print*, 'coordinate ranges:  ',minval(zn),maxval(zn),minval(rhon),maxval(rhon),minval(zi),maxval(zi),minval(rhoi),maxval(rhoi)
 end if
 
-end subroutine read_dneu
+end subroutine read_dneu2D
+
+
+subroutine read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp,flagcart)
+
+! This subroutine reads in neutral frame data, if necessary and puts the results
+! in a module-scope variable for later use
+! this version is for 3D neutral source data
+
+real(wp), intent(in) :: tprev,tnext,t,dtneu,dt        !times of previous input frame,next frame and then current time
+character(*), intent(in) :: neudir                    !directory where neutral simulation data is kept
+integer, dimension(3), intent(out) :: ymdtmp          !storage space for incrementing date without overwriting ymdnext...
+real(wp), intent(out) :: UTsectmp
+logical, intent(in) :: flagcart
+
+integer :: inunit          !file handle for various input files
+integer :: iid,ierr
+character(512) :: filename               !space to store filenames, note size must be 512 to be consistent with our date_ffilename functinos
+integer :: lhorzn                        !number of horizontal grid points
+real(wp), dimension(:,:,:), allocatable :: parmtmp    !temporary resizable space for subgrid neutral data
+
+
+if (flagcart) then
+  lhorzn=lyn
+else
+  lhorzn=lrhon
+end if
+
+
+if (myid==0) then    !root
+  !read in the data from file
+  if(debug) print *, 'tprev,tnow,tnext:  ',tprev,t+dt/2d0,tnext
+  ymdtmp=ymdnext
+  UTsectmp=UTsecnext
+  call dateinc(dtneu,ymdtmp,UTsectmp)                !get the date for "next" params
+  filename=date_filename(neudir,ymdtmp,UTsectmp)     !form the standard data filename
+  print *, 'Pulling neutral data from file:  ',trim(adjustl(filename))
+  open(newunit=inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
+  read(inunit) dnOall,dnN2all,dnO2all,dvnrhoall,dvnzall,dvnxall,dTnall         !these are module-scope variables
+  close(inunit)
+
+  if (debug) then
+    print *, 'Min/max values for dnO:  ',minval(dnOall),maxval(dnOall)
+    print *, 'Min/max values for dnN:  ',minval(dnN2all),maxval(dnN2all)
+    print *, 'Min/max values for dnO:  ',minval(dnO2all),maxval(dnO2all)
+    print *, 'Min/max values for dvnrho:  ',minval(dvnrhoall),maxval(dvnrhoall)
+    print *, 'Min/max values for dvnz:  ',minval(dvnzall),maxval(dvnzall)
+    print *, 'Min/max values for dvnz:  ',minval(dvnxall),maxval(dvnxall)
+    print *, 'Min/max values for dTn:  ',minval(dTnall),maxval(dTnall)
+  endif
+
+  !in the 3D case we cannnot afford to send full grid data and need to instead use neutral subgrid splits defined earlier
+  do iid=1,lid-1
+    allocate(parmtmp(lzn,slabsizes(iid,1),slabsizes(iid,2)))    !get space for the parameter for this worker
+
+    parmtmp=dnOall(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdnO,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dnN2all(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6)) 
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdnN2,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dnO2all(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdnO2,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dTnall(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdTn,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dvnrhoall(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdvnrho,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dvnzall(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdvnz,MPI_COMM_WORLD,ierr)
+
+    parmtmp=dvnxall(1:lzn,indx(iid,3):indx(iid,4),indx(iid,5):indx(iid,6))
+    call mpi_send(parmtmp,lzn*slabsizes(iid,1)*slabsizes(iid,2),mpi_realprec,iid,tagdvnx,MPI_COMM_WORLD,ierr)
+
+    deallocate(parmtmp)
+  end do
+
+  !root needs to grab its piece
+  dnO=dnOall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dnN2=dnN2all(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dnO2=dnO2all(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dTn=dTnall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dvnrho=dvnrhoall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dvnz=dvnzall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+  dvnx=dvnxall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
+
+else     !workers
+  !receive a full copy of the data from root
+  call mpi_recv(dnO,lzn*lxn*lyn,mpi_realprec,0,tagdnO,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dnN2,lzn*lxn*lyn,mpi_realprec,0,tagdnN2,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dnO2,lzn*lxn*lyn,mpi_realprec,0,tagdnO2,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dTn,lzn*lxn*lyn,mpi_realprec,0,tagdTn,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dvnrho,lzn*lxn*lyn,mpi_realprec,0,tagdvnrho,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dvnz,lzn*lxn*lyn,mpi_realprec,0,tagdvnz,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+  call mpi_recv(dvnx,lzn*lxn*lyn,mpi_realprec,0,tagdvnx,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
+end if
+
+
+if (myid==lid/2) then
+  print*, 'neutral data size:  ',lzn,lxn,lyn,lid
+  print *, 'Min/max values for dnO:  ',minval(dnO),maxval(dnO)
+  print *, 'Min/max values for dnN:  ',minval(dnN2),maxval(dnN2)
+  print *, 'Min/max values for dnO:  ',minval(dnO2),maxval(dnO2)
+  print *, 'Min/max values for dvnrho:  ',minval(dvnrho),maxval(dvnrho)
+  print *, 'Min/max values for dvnz:  ',minval(dvnz),maxval(dvnz)
+  print *, 'Min/max values for dTn:  ',minval(dTn),maxval(dTn)
+  print*, 'coordinate ranges:  ',minval(zn),maxval(zn),minval(rhon),maxval(rhon),minval(zi),maxval(zi),minval(rhoi),maxval(rhoi)
+end if
+
+end subroutine read_dneu3D
 
 
 subroutine spaceinterp_dneu2D(flagcart)
@@ -1147,7 +1263,8 @@ end subroutine spaceinterp_dneu3D
 
 subroutine timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
 
-!interpolatino in time - no sensitive to dimensionality of the input neutral data...
+!interpolatino in time - no sensitive to dimensionality of the input neutral data so this can be
+! the same for 2D vs. 3D
 
 real(wp), intent(in) :: t,dt
 real(wp), dimension(:,:,:), intent(out) :: dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow
@@ -1382,7 +1499,7 @@ if (allocated(zn) ) then    !if one is allocated, then they all are
   deallocate(dnO,dnN2,dnO2,dvnrho,dvnz,dTn)
 end if
 if (allocated(extents)) then
-  deallocate(extents,indx)
+  deallocate(extents,indx,slabsizes)
 end if
 if (allocated(dvnx)) then
   deallocate(dvnx)
