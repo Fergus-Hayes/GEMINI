@@ -1478,14 +1478,14 @@ xnrange(2)=maxval(xitmp)
 !situation is more complicated for latitude due to dipole grid, need to determine by L-shell
 if (flagSH) then
   ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0, just use the first longitude slice since they will all have the same L-shell-field line relations
-  ynrange(1)=yitmp(ix1,1,1)
-  ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
-  ynrange(2)=yitmp(ix1,lx2,1)
-else    !things are swapped around in NH
-  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0
   ynrange(2)=yitmp(ix1,1,1)
   ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
   ynrange(1)=yitmp(ix1,lx2,1)
+else    !things are swapped around in NH
+  ix1=minloc(zitmp(:,1,1)-maxzn,1,zitmp(:,1,1)-maxzn>0._wp)    !find the min distance from maxzn subject to constraint that it is > 0; this is the southernmost edge of the neutral slab we need
+  ynrange(1)=yitmp(ix1,1,1)
+  ix1=minloc(zitmp(:,lx2,1),1,zitmp(:,lx2,1)<0._wp)
+  ynrange(2)=yitmp(ix1,lx2,1)
 end if
 
 end subroutine slabrange
