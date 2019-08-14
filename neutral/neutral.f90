@@ -812,15 +812,16 @@ do ix3=1,lx3
 
       tmpvec=exprm*x%e1(ix1,ix2,ix3,:)
       tmpsca=sum(tmpvec)
-      proj_exp_e1=tmpsca
+      proj_exp_e1(ix1,ix2,ix3)=tmpsca
 
       tmpvec=exprm*x%e2(ix1,ix2,ix3,:)
       tmpsca=sum(tmpvec)
-      proj_exp_e2=tmpsca
+      proj_exp_e2(ix1,ix2,ix3)=tmpsca
 
       tmpvec=exprm*x%e3(ix1,ix2,ix3,:)
       tmpsca=sum(tmpvec)
-      proj_exp_e3=tmpsca
+      proj_exp_e3(ix1,ix2,ix3)=tmpsca
+
     end do
   end do
 end do
@@ -833,6 +834,9 @@ xi=pack(ximat,.true.)
 
 
 !GRID UNIT VECTORS NO LONGER NEEDED ONCE PROJECTIONS ARE CALCULATED, so go ahead and free some space
+if (myid==0) then
+  print*, '...Clearing out unit vectors (after projections)...'
+end if
 call clear_unitvecs(x)
 
 
@@ -856,8 +860,10 @@ if (myid==0) then    !root
 
 
   !calculate the z grid (same for all) and distribute to workers so we can figure out their x-y slabs
+  print*, '...creating vertical grid and sending to workers...'
   zn=[ ((real(izn,8)-1._wp)*dzn, izn=1,lzn) ]    !root calculates and distributes but this is the same for all workers - assmes that the max neutral grid extent in altitude is always less than the plasma grid (should almost always be true)
-  do iid=1,lid
+  maxzn=maxval(zn)
+  do iid=1,lid-1
     call mpi_send(lzn,1,MPI_INTEGER,iid,taglz,MPI_COMM_WORLD,ierr)
     call mpi_send(zn,lzn,mpi_realprec,iid,tagzn,MPI_COMM_WORLD,ierr)
   end do
@@ -871,35 +877,38 @@ if (myid==0) then    !root
   meanxn=sum(xnall,1)/size(xnall,1)
   xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
   if (myid==0) then
-    print *, 'Creating full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
+    print *, 'Created full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
                 maxval(ynall),minval(zn),maxval(zn)
   end if
   
 
   !calculate the extent of my piece of the grid using max altitude specified for the neutral grid
-  call slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
-  allocate(extents(0:lid-1,6),indx(0:lid-1,6)) 
+  call slabrange(maxzn,ximat,yimat,zimat,meanlat,xnrange,ynrange)
+  allocate(extents(0:lid-1,6),indx(0:lid-1,6),slabsizes(0:lid-1,2)) 
   extents(0,1:6)=[0._wp,maxzn,xnrange(1),xnrange(2),ynrange(1),ynrange(2)] 
 
 
   !receive extents of each of the other workers: extents(lid,6)
+  print*, 'Receiving xn and yn ranges from workers...'
   do iid=1,lid-1
     call mpi_recv(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)  
-    call mpi_recv(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)  
+    call mpi_recv(ynrange,2,mpi_realprec,iid,tagynrange,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)  
     extents(iid,1:6)=[0._wp,maxzn,xnrange(1),xnrange(2),ynrange(1),ynrange(2)]     !need to store values as xnrange overwritten for each worker
+    print*, 'Subgrid extents:  ',iid,extents(iid,:)
   end do
 
 
   !find index into into neutral arrays for each worker:  indx(lid,6)
-  allocate(indx(lid,6))
+  print*, 'Converting ranges to indices...'
   do iid=0,lid-1
     call range2inds(extents(iid,1:6),xnall,ynall,zn,indices)
     indx(iid,1:6)=indices
+    print*, 'Subgrid indices',iid,indx(iid,:)
   end do
 
 
   !send each worker the sizes for their particular chunk (all different) and send worker that grid chunk
-  allocate(slabsizes(lid,2))
+  print*,'Sending sizes and xn,yn subgrids to workers...'
   do iid=1,lid-1
     lxn=indx(iid,4)-indx(iid,3)+1
     lyn=indx(iid,6)-indx(iid,5)+1
@@ -914,6 +923,7 @@ if (myid==0) then    !root
 
 
   !have root store its part to the full neutral grid
+  print*, 'Root is picking out its own subgrid...'
   lxn=indx(0,4)-indx(0,3)+1
   lyn=indx(0,6)-indx(0,5)+1
   slabsizes(0,1:2)=[lxn,lyn]
@@ -929,7 +939,7 @@ else                 !workers
 
 
   !calculate the extent of my grid
-  call slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
+  call slabrange(maxzn,ximat,yimat,zimat,meanlat,xnrange,ynrange)
 
 
   !send ranges to root
@@ -947,12 +957,11 @@ end if
 
 
 !PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
-  print *, 'Min/max yn,zn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
-  print *, 'Min/max yi,zi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
-
-  print *, 'Source lat/long:  ',myid,meanlat,meanlong
-  print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
-  print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
+print *, 'Min/max yn,xn,zn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
+print *, 'Min/max yi,xi,zi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
+print *, 'Source lat/long:  ',myid,meanlat,meanlong
+print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
 
 end subroutine gridproj_dneu3D
 
@@ -1398,7 +1407,7 @@ end if
 end subroutine timeinterp_dneu
 
 
-subroutine slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
+subroutine slabrange(maxzn,ximat,yimat,zimat,sourcemlat,xnrange,ynrange)
 
 !takes in a subgrid and the max altitude of interest for neutral interpolation and then computes
 !what the maximum xn and yn will be for that slab
@@ -1406,6 +1415,7 @@ subroutine slabrange(maxzn,ximat,yimat,zimat,xnrange,ynrange)
 
 real(wp), intent(in) :: maxzn
 real(wp), dimension(:,:,:), intent(in) :: ximat,yimat,zimat
+real(wp), intent(in) :: sourcemlat
 real(wp), dimension(2), intent(out) :: xnrange,ynrange     !for min and max
 
 real(wp), dimension(:,:,:), allocatable :: xitmp,yitmp,zitmp
@@ -1418,30 +1428,39 @@ integer :: ix1
 
 !peel the grid in half (source hemisphere if closed dipole)
 if (gridflag==0) then    !closed dipole grid
+  if (sourcemlat<=0) then
+    flagSH=.true.
+!    print*, '...While sorting workers found a source in the SOUTHERN HEMISPHERE...'
+  else
+    flagSH=.false.
+!    print*, '...While sorting workers found a source in the NOTHERN HEMISPHERE...'
+  end if
+
   lx1tmp=lx1/2           !note use of integer division here...  This is the size of the half-grid, viz. one hemisphere of the grid
   allocate(xitmp(lx1tmp,lx2,lx3),yitmp(lx1tmp,lx2,lx3),zitmp(lx1tmp,lx2,lx3))   !could this be done more less wastefully with pointers; I'm always unsure of whether "target" needs to be specified (maybe not for allocated memory???)
 
   !middle of x-y grid assumed to be zero (viz. centered on the neutral source)
-  ix1stmp=minloc(ximat,1,ximat>0._wp)   !x1 indices where the x-distance from the source is minimum, but still larger than zero 
-  ix1tmp=minval(ix1stmp)                !x1 index of the minimum distance from epicenter (other indices not needed here) 
-  if (ix1tmp<lx1tmp) then               !source location is less than halfway into grid => southern hemisphere
-    flagSH=.true.                        !source is on the lower x1 indices so southern
+!  ix1stmp=minloc(abs(ximat),1)   !x1 indices where the x-distance from the source is minimum, but still larger than zero 
+!  ix1tmp=minval(ix1stmp)                !x1 index of the minimum distance from epicenter (other indices not needed here) 
+!  if (ix1tmp<lx1tmp) then               !source location is less than halfway into grid => southern hemisphere
+!    flagSH=.true.                        !source is on the lower x1 indices so southern
+  if(flagSH) then
     xitmp=ximat(1:lx1tmp,1:lx2,1:lx3)    !select beginning of the array - the southern half
     yitmp=yimat(1:lx1tmp,1:lx2,1:lx3)
     zitmp=zimat(1:lx1tmp,1:lx2,1:lx3)
-    print*, '...While sorting workers found a souce in the SOUTHERN HEMISPHERE...'
   else                                     !not southern hemisphere so must be northern
-    flagSH=.false.
-    if (lx1tmp==lx1-lx1tmp) then             !north half is exactly half the entire grid
+!    flagSH=.false.
+    if (lx1==lx1/2*2) then             !north half is exactly half the entire grid
+!      print*, 'NH evenly divisible'
       xitmp=ximat(lx1tmp+1:lx1,1:lx2,1:lx3)    !select end half of the array
       yitmp=yimat(lx1tmp+1:lx1,1:lx2,1:lx3)
       zitmp=zimat(lx1tmp+1:lx1,1:lx2,1:lx3)
     else                                     !if not half, must be smaller by one grid point
+      print*, 'Warning:  NH not evenly divisible along field line, chopping off apex point'
       xitmp=ximat(lx1tmp+2:lx1,1:lx2,1:lx3)  !had an odd number of points along the field line, chop off the apex point - hopefully doesn't cause issues...
       yitmp=yimat(lx1tmp+2:lx1,1:lx2,1:lx3)
       zitmp=zimat(lx1tmp+2:lx1,1:lx2,1:lx3)      
     end if
-    print*, '...While sorting workers found a soure in the NOTHERN HEMISPHERE...'
   end if
 else     !this is not a dipole grid so our approach is simpler
   lx1tmp=lx1
