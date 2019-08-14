@@ -414,10 +414,16 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
     UTsecnext=UTsecprev
 
     !Create a neutral grid, do some allocations and projections
+    if (myid==0) then
+      print*, 'Creating a neutral grid...'
+    end if
     call gridproj_dneu3D(dxn,dyn,dzn,meanlat,meanlong,neudir,x)    !set true to denote Cartesian...
   end if
 
   !Read in neutral data from a file
+  if (myid==0) then
+    print*, 'Reading in data from neutral file'
+  end if
   call read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp)
 
   !Spatial interpolatin for the frame we just read in
@@ -437,7 +443,11 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
 end if
 
 !Interpolation in time
+if (myid==0) then
+  print*, 'Interpolating in time'
+end if
 call timeinterp_dneu(t,dt,dNOinow,dnN2inow,dnO2inow,dvn1inow,dvn2inow,dvn3inow,dTninow)
+
 
 !NOW UPDATE THE PROVIDED NEUTRAL ARRAYS
 nn(:,:,:,1)=nnmsis(:,:,:,1)+dnOinow
@@ -876,10 +886,8 @@ if (myid==0) then    !root
   xnall=[ ((real(ixn,8)-1._wp)*dxn, ixn=1,lxnall) ]
   meanxn=sum(xnall,1)/size(xnall,1)
   xnall=xnall-meanxn     !the neutral grid should be centered on zero for a cartesian interpolation
-  if (myid==0) then
-    print *, 'Created full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
+  print *, 'Created full neutral grid with y,z extent:',minval(xnall),maxval(xnall),minval(ynall), &
                 maxval(ynall),minval(zn),maxval(zn)
-  end if
   
 
   !calculate the extent of my piece of the grid using max altitude specified for the neutral grid
@@ -915,10 +923,12 @@ if (myid==0) then    !root
     slabsizes(iid,1:2)=[lxn,lyn]
     call mpi_send(lyn,1,MPI_INTEGER,iid,taglrho,MPI_COMM_WORLD,ierr)
     call mpi_send(lxn,1,MPI_INTEGER,iid,taglx,MPI_COMM_WORLD,ierr)
+    allocate(xn(lxn),yn(lyn))
     xn=xnall(indx(iid,3):indx(iid,4))
     yn=ynall(indx(iid,5):indx(iid,6))
     call mpi_send(xn,lxn,mpi_realprec,iid,tagxn,MPI_COMM_WORLD,ierr)
     call mpi_send(yn,lyn,mpi_realprec,iid,tagyn,MPI_COMM_WORLD,ierr)
+    deallocate(xn,yn)
   end do
 
 
@@ -943,8 +953,8 @@ else                 !workers
 
 
   !send ranges to root
-  call mpi_send(xnrange,2,mpi_realprec,iid,tagxnrange,MPI_COMM_WORLD,ierr)
-  call mpi_send(ynrange,2,mpi_realprec,iid,tagynrange,MPI_COMM_WORLD,ierr)
+  call mpi_send(xnrange,2,mpi_realprec,0,tagxnrange,MPI_COMM_WORLD,ierr)
+  call mpi_send(ynrange,2,mpi_realprec,0,tagynrange,MPI_COMM_WORLD,ierr)
   
 
   !receive my sizes from root, allocate then receive my pieces of the grid
@@ -956,12 +966,17 @@ else                 !workers
 end if
 
 
+!AT THIS POINT WE CAN ALLOCATE THE SUBGRID SIZES
+allocate(dnO(lzn,lxn,lyn),dnN2(lzn,lxn,lyn),dnO2(lzn,lxn,lyn),dvnrho(lzn,lxn,lyn), &
+           dvnz(lzn,lxn,lyn),dvnx(lzn,lxn,lyn),dTn(lzn,lxn,lyn)) 
+
+
 !PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
 print *, 'Min/max yn,xn,zn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
 print *, 'Min/max yi,xi,zi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
-print *, 'Source lat/long:  ',myid,meanlat,meanlong
-print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
-print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
+!print *, 'Source lat/long:  ',myid,meanlat,meanlong
+!print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
+!print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
 
 end subroutine gridproj_dneu3D
 
@@ -1076,17 +1091,17 @@ if (myid==0) then    !root
   filename=date_filename(neudir,ymdtmp,UTsectmp)     !form the standard data filename
   print *, 'Pulling neutral data from file:  ',trim(adjustl(filename))
   open(newunit=inunit,file=trim(adjustl(filename)),status='old',form='unformatted',access='stream')
-  read(inunit) dnOall,dnN2all,dnO2all,dvnrhoall,dvnzall,dvnxall,dTnall         !these are module-scope variables
+  read(inunit) dnOall,dnN2all,dnO2all,dvnxall,dvnrhoall,dvnzall,dTnall         !these are module-scope variables
   close(inunit)
 
   if (debug) then
-    print *, 'Min/max values for dnO:  ',minval(dnOall),maxval(dnOall)
-    print *, 'Min/max values for dnN:  ',minval(dnN2all),maxval(dnN2all)
-    print *, 'Min/max values for dnO:  ',minval(dnO2all),maxval(dnO2all)
-    print *, 'Min/max values for dvnrho:  ',minval(dvnrhoall),maxval(dvnrhoall)
-    print *, 'Min/max values for dvnz:  ',minval(dvnzall),maxval(dvnzall)
-    print *, 'Min/max values for dvnz:  ',minval(dvnxall),maxval(dvnxall)
-    print *, 'Min/max values for dTn:  ',minval(dTnall),maxval(dTnall)
+    print *, 'Min/max values for dnOall:  ',minval(dnOall),maxval(dnOall)
+    print *, 'Min/max values for dnNall:  ',minval(dnN2all),maxval(dnN2all)
+    print *, 'Min/max values for dnOall:  ',minval(dnO2all),maxval(dnO2all)
+    print *, 'Min/max values for dvnzall:  ',minval(dvnxall),maxval(dvnxall)
+    print *, 'Min/max values for dvnrhoall:  ',minval(dvnrhoall),maxval(dvnrhoall)
+    print *, 'Min/max values for dvnzall:  ',minval(dvnzall),maxval(dvnzall)
+    print *, 'Min/max values for dTnall:  ',minval(dTnall),maxval(dTnall)
   endif
 
   !in the 3D case we cannnot afford to send full grid data and need to instead use neutral subgrid splits defined earlier
@@ -1141,11 +1156,12 @@ if (myid==lid/2) then
   print*, 'neutral data size:  ',lzn,lxn,lyn,lid
   print *, 'Min/max values for dnO:  ',minval(dnO),maxval(dnO)
   print *, 'Min/max values for dnN:  ',minval(dnN2),maxval(dnN2)
-  print *, 'Min/max values for dnO:  ',minval(dnO2),maxval(dnO2)
+  print *, 'Min/max values for dnO2:  ',minval(dnO2),maxval(dnO2)
+  print *, 'Min/max values for dvnrho:  ',minval(dvnx),maxval(dvnx)
   print *, 'Min/max values for dvnrho:  ',minval(dvnrho),maxval(dvnrho)
   print *, 'Min/max values for dvnz:  ',minval(dvnz),maxval(dvnz)
   print *, 'Min/max values for dTn:  ',minval(dTn),maxval(dTn)
-  print*, 'coordinate ranges:  ',minval(zn),maxval(zn),minval(rhon),maxval(rhon),minval(zi),maxval(zi),minval(rhoi),maxval(rhoi)
+!  print*, 'coordinate ranges:  ',minval(zn),maxval(zn),minval(rhon),maxval(rhon),minval(zi),maxval(zi),minval(rhoi),maxval(rhoi)
 end if
 
 end subroutine read_dneu3D
@@ -1522,7 +1538,7 @@ ixn=1
 do while (ixn<lxnall .and. xnall(ixn)<minxn)
   ixn=ixn+1
 end do
-indices(3)=min(ixn-1,1)    !just to be sure go back one index so that we cover the min range, don't let index fall below zero
+indices(3)=max(ixn-1,1)    !just to be sure go back one index so that we cover the min range, don't let index fall below zero
 do while (ixn<lxnall .and. xnall(ixn)<maxxn)
   ixn=ixn+1
 end do
@@ -1534,7 +1550,7 @@ iyn=1
 do while (iyn<lynall .and. ynall(iyn)<minyn)
   iyn=iyn+1
 end do
-indices(5)=min(iyn-1,1)    !just to be sure go back one index so that we cover the min range
+indices(5)=max(iyn-1,1)    !just to be sure go back one index so that we cover the min range
 do while (iyn<lynall .and. ynall(iyn)<maxyn)
   iyn=iyn+1
 end do
