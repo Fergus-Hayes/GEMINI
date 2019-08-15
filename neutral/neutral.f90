@@ -364,8 +364,8 @@ nn(:,:,:,2)=max(nn(:,:,:,2),1._wp)
 nn(:,:,:,3)=max(nn(:,:,:,3),1._wp)
 Tn=Tnmsis+dTninow
 Tn=max(Tn,51._wp)
-vn2=vn1base+dvn1inow
-vn3=vn2base+dvn2inow
+vn1=vn1base+dvn1inow
+vn2=vn2base+dvn2inow
 vn3=vn3base+dvn3inow
 
 end subroutine neutral_perturb_cart
@@ -458,8 +458,8 @@ nn(:,:,:,2)=max(nn(:,:,:,2),1._wp)
 nn(:,:,:,3)=max(nn(:,:,:,3),1._wp)
 Tn=Tnmsis+dTninow
 Tn=max(Tn,51._wp)
-vn2=vn1base+dvn1inow
-vn3=vn2base+dvn2inow
+vn1=vn1base+dvn1inow
+vn2=vn2base+dvn2inow
 vn3=vn3base+dvn3inow
 
 end subroutine neutral_perturb_3D
@@ -716,6 +716,7 @@ real(wp) :: tmpsca
 
 integer :: ix1,ix2,ix3,iyn,izn,ixn,iid,ierr
 real(wp), dimension(x%lx1,x%lx2,x%lx3) :: zimat,rhoimat,yimat,ximat
+
 real(wp) :: maxzn
 real(wp), dimension(2) :: xnrange,ynrange
 integer, dimension(6) :: indices
@@ -972,8 +973,8 @@ allocate(dnO(lzn,lxn,lyn),dnN2(lzn,lxn,lyn),dnO2(lzn,lxn,lyn),dvnrho(lzn,lxn,lyn
 
 
 !PRINT OUT SOME BASIC INFO ABOUT THE GRID THAT WE'VE LOADED
-print *, 'Min/max yn,xn,zn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
-print *, 'Min/max yi,xi,zi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
+print *, 'Min/max zn,xn,yn values',myid,minval(zn),maxval(zn),minval(xn),maxval(xn),minval(yn),maxval(yn)
+print *, 'Min/max zi,xi,yi values',myid,minval(zi),maxval(zi),minval(xi),maxval(xi),minval(yi),maxval(yi)
 !print *, 'Source lat/long:  ',myid,meanlat,meanlong
 !print *, 'Plasma grid lat range:  ',myid,minval(x%glat(:,:,:)),maxval(x%glat(:,:,:))
 !print *, 'Plasma grid lon range:  ',myid,minval(x%glon(:,:,:)),maxval(x%glon(:,:,:))
@@ -1097,8 +1098,8 @@ if (myid==0) then    !root
   if (debug) then
     print *, 'Min/max values for dnOall:  ',minval(dnOall),maxval(dnOall)
     print *, 'Min/max values for dnNall:  ',minval(dnN2all),maxval(dnN2all)
-    print *, 'Min/max values for dnOall:  ',minval(dnO2all),maxval(dnO2all)
-    print *, 'Min/max values for dvnzall:  ',minval(dvnxall),maxval(dvnxall)
+    print *, 'Min/max values for dnO2all:  ',minval(dnO2all),maxval(dnO2all)
+    print *, 'Min/max values for dvnxall:  ',minval(dvnxall),maxval(dvnxall)
     print *, 'Min/max values for dvnrhoall:  ',minval(dvnrhoall),maxval(dvnrhoall)
     print *, 'Min/max values for dvnzall:  ',minval(dvnzall),maxval(dvnzall)
     print *, 'Min/max values for dTnall:  ',minval(dTnall),maxval(dTnall)
@@ -1152,17 +1153,17 @@ else     !workers
 end if
 
 
-if (myid==lid/2) then
-  print*, 'neutral data size:  ',lzn,lxn,lyn,lid
-  print *, 'Min/max values for dnO:  ',minval(dnO),maxval(dnO)
-  print *, 'Min/max values for dnN:  ',minval(dnN2),maxval(dnN2)
-  print *, 'Min/max values for dnO2:  ',minval(dnO2),maxval(dnO2)
-  print *, 'Min/max values for dvnrho:  ',minval(dvnx),maxval(dvnx)
-  print *, 'Min/max values for dvnrho:  ',minval(dvnrho),maxval(dvnrho)
-  print *, 'Min/max values for dvnz:  ',minval(dvnz),maxval(dvnz)
-  print *, 'Min/max values for dTn:  ',minval(dTn),maxval(dTn)
+!if (myid==lid/2) then
+  print*, 'neutral data size:  ',myid,lzn,lxn,lyn
+  print *, 'Min/max values for dnO:  ',myid,minval(dnO),maxval(dnO)
+  print *, 'Min/max values for dnN:  ',myid,minval(dnN2),maxval(dnN2)
+  print *, 'Min/max values for dnO2:  ',myid,minval(dnO2),maxval(dnO2)
+  print *, 'Min/max values for dvnx:  ',myid,minval(dvnx),maxval(dvnx)
+  print *, 'Min/max values for dvnrho:  ',myid,minval(dvnrho),maxval(dvnrho)
+  print *, 'Min/max values for dvnz:  ',myid,minval(dvnz),maxval(dvnz)
+  print *, 'Min/max values for dTn:  ',myid,minval(dTn),maxval(dTn)
 !  print*, 'coordinate ranges:  ',minval(zn),maxval(zn),minval(rhon),maxval(rhon),minval(zi),maxval(zi),minval(rhoi),maxval(rhoi)
-end if
+!end if
 
 end subroutine read_dneu3D
 
@@ -1297,7 +1298,6 @@ subroutine spaceinterp_dneu3D()
 
 !performs spatial interpolation for 3D input neutral data from MAGIC or some other source
 
-real(wp), dimension(:,:), allocatable :: tmpinterp
 real(wp), dimension(lx1*lx2*lx3) :: parami    !work array for temp storage of interpolated data, note sizes taken from grid module data
 
 
@@ -1333,15 +1333,15 @@ dTninext=reshape(parami,[lx1,lx2,lx3])
 
 
 !MORE DIAG
-if (myid==lid/2) then
-  print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
-  print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
-  print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
-  print *, 'Min/max values for dvrhoi:  ',minval(dvnrhoinext),maxval(dvnrhoinext)
-  print *, 'Min/max values for dvnzi:  ',minval(dvnzinext),maxval(dvnzinext)
-  print *, 'Min/max values for dvnzi:  ',minval(dvnxinext),maxval(dvnxinext)
-  print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
-end if
+!if (myid==lid/2) then
+  print *, 'Min/max values for dnOi:  ',myid,minval(dnOinext),maxval(dnOinext)
+  print *, 'Min/max values for dnN2i:  ',myid,minval(dnN2inext),maxval(dnN2inext)
+  print *, 'Min/max values for dnO2i:  ',myid,minval(dnO2inext),maxval(dnO2inext)
+  print *, 'Min/max values for dvrhoi:  ',myid,minval(dvnrhoinext),maxval(dvnrhoinext)
+  print *, 'Min/max values for dvnzi:  ',myid,minval(dvnzinext),maxval(dvnzinext)
+  print *, 'Min/max values for dvnxi:  ',myid,minval(dvnxinext),maxval(dvnxinext)
+  print *, 'Min/max values for dTni:  ',myid,minval(dTninext),maxval(dTninext)
+!end if
 
 
 !ROTATE VECTORS INTO X1 X2 DIRECTIONS (Need to include unit vectors with grid
@@ -1355,15 +1355,11 @@ dvn3inext=dvnrhoinext*proj_eyp_e3+dvnzinext*proj_ezp_e3+dvnxinext*proj_exp_e3
 
 
 !MORE DIAGNOSTICS
-if (myid==lid/2) then
-  print *, 'Min/max values for dnOi:  ',minval(dnOinext),maxval(dnOinext)
-  print *, 'Min/max values for dnN2i:  ',minval(dnN2inext),maxval(dnN2inext)
-  print *, 'Min/max values for dnO2i:  ',minval(dnO2inext),maxval(dnO2inext)
-  print *, 'Min/max values for dvn1i:  ',minval(dvn1inext),maxval(dvn1inext)
-  print *, 'Min/max values for dvn2i:  ',minval(dvn2inext),maxval(dvn2inext)
-  print *, 'Min/max values for dvn3i:  ',minval(dvn3inext),maxval(dvn3inext)
-  print *, 'Min/max values for dTni:  ',minval(dTninext),maxval(dTninext)
-end if
+!if (myid==lid/2) then
+  print *, 'Min/max values for dvn1i:  ',myid,minval(dvn1inext),maxval(dvn1inext)
+  print *, 'Min/max values for dvn2i:  ',myid,minval(dvn2inext),maxval(dvn2inext)
+  print *, 'Min/max values for dvn3i:  ',myid,minval(dvn3inext),maxval(dvn3inext)
+!end if
 
 end subroutine spaceinterp_dneu3D
 
@@ -1408,17 +1404,16 @@ end do
 
 
 !SOME BASIC DIAGNOSTICS
-if (myid==lid/2 .and. debug) then
-  print *, myid
-  print *, 'tprev,t,tnext:  ',tprev,t+dt/2d0,tnext
-  print *, 'Min/max values for dnOinow:  ',minval(dnOinow),maxval(dnOinow)
-  print *, 'Min/max values for dnN2inow:  ',minval(dnN2inow),maxval(dnN2inow)
-  print *, 'Min/max values for dnO2inow:  ',minval(dnO2inow),maxval(dnO2inow)
-  print *, 'Min/max values for dvn1inow:  ',minval(dvn1inow),maxval(dvn1inow)
-  print *, 'Min/max values for dvn2inow:  ',minval(dvn2inow),maxval(dvn2inow)
-  print *, 'Min/max values for dvn3inow:  ',minval(dvn3inow),maxval(dvn3inow)
-  print *, 'Min/max values for dTninow:  ',minval(dTninow),maxval(dTninow)
-end if
+!if (myid==lid/2 .and. debug) then
+  print *, 'tprev,t,tnext:  ',myid,tprev,t+dt/2d0,tnext
+  print *, 'Min/max values for dnOinow:  ',myid,minval(dnOinow),maxval(dnOinow)
+  print *, 'Min/max values for dnN2inow:  ',myid,minval(dnN2inow),maxval(dnN2inow)
+  print *, 'Min/max values for dnO2inow:  ',myid,minval(dnO2inow),maxval(dnO2inow)
+  print *, 'Min/max values for dvn1inow:  ',myid,minval(dvn1inow),maxval(dvn1inow)
+  print *, 'Min/max values for dvn2inow:  ',myid,minval(dvn2inow),maxval(dvn2inow)
+  print *, 'Min/max values for dvn3inow:  ',myid,minval(dvn3inow),maxval(dvn3inow)
+  print *, 'Min/max values for dTninow:  ',myid,minval(dTninow),maxval(dTninow)
+!end if
 
 end subroutine timeinterp_dneu
 
