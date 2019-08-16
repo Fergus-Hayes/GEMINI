@@ -595,6 +595,7 @@ do ix3=1,lx3
         gamma2=-1._wp
       end if
       gamma2=acos(gamma2)
+
       xp=Re*gamma1
       yp=Re*gamma2     !this will likely always be positive, since we are using center of earth as our origin, so this should be interpreted as distance as opposed to displacement
 
@@ -784,9 +785,10 @@ do ix3=1,lx3
       if (phi2<phi3) then     !assume we aren't doing a global grid otherwise need to check for wrapping, here field point (phi2) less than soure point (phi3=phi1)
         xp=-1._wp*xp
       end if
-      phip=atan2(yp,xp)
-      ximat(ix1,ix2,ix3)=xp
-      yimat(ix1,ix2,ix3)=yp
+      !phip=atan2(yp,xp)
+
+      ximat(ix1,ix2,ix3)=xp     !eastward distance
+      yimat(ix1,ix2,ix3)=yp     !northward distance
 
 
       !PROJECTIONS FROM NEUTURAL GRID VECTORS TO PLASMA GRID VECTORS
@@ -849,6 +851,12 @@ if (myid==0) then
   print*, '...Clearing out unit vectors (after projections)...'
 end if
 call clear_unitvecs(x)
+
+
+if(myid==0) then
+  print*, 'Projection checking:  ',minval(proj_exp_e1),maxval(proj_exp_e1),minval(proj_exp_e2),maxval(proj_exp_e2), &
+                                   minval(proj_exp_e3),maxval(proj_exp_e3)
+end if
 
 
 !Establish the size of the grid based on input file and distribute to workers
@@ -1144,7 +1152,7 @@ if (myid==0) then    !root
   dvnz=dvnzall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
   dvnx=dvnxall(1:lzn,indx(0,3):indx(0,4),indx(0,5):indx(0,6))
 else     !workers
-  !receive a full copy of the data from root
+  !receive a subgrid copy of the data from root
   call mpi_recv(dnO,lzn*lxn*lyn,mpi_realprec,0,tagdnO,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
   call mpi_recv(dnN2,lzn*lxn*lyn,mpi_realprec,0,tagdnN2,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
   call mpi_recv(dnO2,lzn*lxn*lyn,mpi_realprec,0,tagdnO2,MPI_COMM_WORLD,MPI_STATUS_IGNORE,ierr)
@@ -1291,7 +1299,6 @@ end if
 
 !CLEAR ALLOCATED VARS
 deallocate(tmpinterp)
-
 
 end subroutine spaceinterp_dneu2D
 
