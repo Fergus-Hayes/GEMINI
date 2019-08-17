@@ -1624,9 +1624,14 @@ deallocate(nnmsis,Tnmsis,vn1base,vn2base,vn3base)
 
 !check whether any other module variables were allocated and deallocate accordingly
 if (allocated(zn) ) then    !if one is allocated, then they all are
-  deallocate(rhon,zn)
-  deallocate(yn)
+  deallocate(zn)
   deallocate(dnO,dnN2,dnO2,dvnrho,dvnz,dTn)
+end if
+if (allocated(rhon)) then
+  deallocate(rhon)
+end if
+if (allocated(yn)) then
+  deallocate(yn)
 end if
 if (allocated(extents)) then
   deallocate(extents,indx,slabsizes)
