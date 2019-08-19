@@ -402,6 +402,8 @@ integer, dimension(3) :: ymdtmp
 real(wp) :: UTsectmp
 real(wp), dimension(size(nn,1),size(nn,2),size(nn,3)) :: dnOinow,dnN2inow,dnO2inow,dTninow,dvn1inow,dvn2inow,dvn3inow    !current time step perturbations (centered in time)
 
+real(wp) :: starttime,endtime
+
 
 !CHECK WHETHER WE NEED TO LOAD A NEW FILE
 if (t+dt/2d0>=tnext .or. t<=0d0) then
@@ -423,14 +425,24 @@ if (t+dt/2d0>=tnext .or. t<=0d0) then
   !Read in neutral data from a file
   if (myid==0 .and. debug) then
     print*, 'Reading in data from neutral file'
+    call cpu_time(starttime)
   end if
   call read_dneu3D(tprev,tnext,t,dtneu,dt,neudir,ymdtmp,UTsectmp)
+  if (myid==0 .and. debug) then 
+    call cpu_time(endtime)
+    print*, 'Neutral data input required time:  ',endtime-starttime
+  end if
 
   !Spatial interpolatin for the frame we just read in
   if (myid==0 .and. debug) then
     print *, 'Spatial interpolation and rotation of vectors for date:  ',ymdtmp,' ',UTsectmp
+    call cpu_time(starttime)
   end if
   call spaceinterp_dneu3D()
+  if (myid==0 .and. debug) then
+    call cpu_time(endtime)
+    print*, 'Spatial interpolation in 3D took time:  ',endtime-starttime
+  end if
 
   !UPDATE OUR CONCEPT OF PREVIOUS AND NEXT TIMES
   tprev=tnext
