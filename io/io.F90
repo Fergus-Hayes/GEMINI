@@ -851,13 +851,18 @@ subroutine output_aur_workers(iver)
 !------------------------------------------------------------
 !-------SEND COMPLETE DATA FROM WORKERS TO ROOT PROCESS FOR OUTPUT.
 !-------NO GHOST CELLS (I HOPE)
+!-------
+!-------The mpi'd dimensions are 2 and 3 so lwave needs to be
+!-------permuted to the first dimension for the canned routines
+!-------to work...
 !------------------------------------------------------------
 
 real(wp), dimension(:,:,:), intent(in) :: iver
 
 real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
 
-ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+!ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+ivertmp=reshape(iver,[lwave,lx2,lx3],order=[3,1,2])
 
 !------- SEND AURORA PARAMETERS TO ROOT
 call gather_send(ivertmp,tagAur)
@@ -896,9 +901,11 @@ print *, '  Output file name (auroral maps):  ',filenamefull
 open(newunit=u,file=filenamefull,status='replace',form='unformatted',access='stream',action='write')
 
 if(flagswap/=1) then
-  write(u) reshape(iverall,[lx2all,lx3all,lwave],order=[1,3,2])
+!  write(u) reshape(iverall,[lx2all,lx3all,lwave],order=[1,3,2])
+  write(u) reshape(iverall,[lx2all,lx3all,lwave],order=[2,3,1])
 else
-  write(u) reshape(iverall,[lx3all,lwave,lx2all],order=[3,2,1])
+!  write(u) reshape(iverall,[lx3all,lwave,lx2all],order=[3,2,1])
+  write(u) reshape(iverall,[lx3all,lwave,lx2all],order=[3,1,2])
 end if
 
 close(u)
