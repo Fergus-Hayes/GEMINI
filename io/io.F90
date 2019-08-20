@@ -859,8 +859,10 @@ subroutine output_aur_workers(iver)
 
 real(wp), dimension(:,:,:), intent(in) :: iver
 
-real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+!real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+real(wp), dimension(1:lwave,1:lx2,1:lx3) :: ivertmp
 
+print*, ''
 !ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
 ivertmp=reshape(iver,[lwave,lx2,lx3],order=[3,1,2])
 
@@ -882,13 +884,16 @@ integer, intent(in) :: flagglow, ymd(3)
 real(wp), intent(in) :: UTsec
 real(wp), dimension(:,:,:), intent(in) :: iver
 
-real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
-real(wp), dimension(1:lx2all,1:lwave,1:lx3all) :: iverall
+!real(wp), dimension(1:lx2,1:lwave,1:lx3) :: ivertmp
+!real(wp), dimension(1:lx2all,1:lwave,1:lx3all) :: iverall
+real(wp), dimension(1:lwave,1:lx2,1:lx3) :: ivertmp
+real(wp), dimension(1:lwave,1:lx2all,1:lx3all) :: iverall
 
 character(:), allocatable :: outdir_composite, filenamefull
 integer :: u
 
-ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
+ivertmp=reshape(iver,[lwave,lx2,lx3],order=[3,1,2])
+!ivertmp=reshape(iver,[lx2,lwave,lx3],order=[1,3,2])
 
 call gather_recv(ivertmp,tagAur,iverall)
 
