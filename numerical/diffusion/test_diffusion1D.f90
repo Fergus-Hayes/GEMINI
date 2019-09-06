@@ -9,7 +9,7 @@ use phys_consts, only: wp,pi
 use diffusion
 implicit none
 
-integer, parameter :: npts=256,lt=1024
+integer, parameter :: npts=256,lt=20*5
 character(*), parameter :: outfile='test_diffusion1d.dat'
 
 real(wp), dimension(npts) :: v1,dx1i
@@ -39,12 +39,13 @@ call writearray(u,x1)
 
 
 !! initial conditions
-Ts(-1:lx1+2)=sin(2*pi*x1(-1:lx1+2))
+Ts(-1:lx1+2)=sin(2.0_wp*pi*x1(-1:lx1+2))+sin(8.0_wp*pi*x1(-1:lx1+2))
 lambda(:)=1.0_wp     !thermal conductivity
 
 
 !! typical diffusion time, make our time step a fraction of this
-dt=0.5_wp*maxval(dx1)**2/maxval(lambda)
+!dt=maxval(dx1)**2/maxval(lambda)
+dt=0.05*1/8.0_wp**2/pi**2/maxval(lambda)
 
 
 !! time interations
@@ -65,7 +66,7 @@ do it=1,lt
   Ts(1:lx1)=backEuler1D(Ts(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
 
   !compute analytical solution to compare
-  Tstrue(1:lx1)=exp(-4*pi**2*lambda*t)*sin(2*pi*x1(1:lx1))
+  Tstrue(1:lx1)=exp(-4.0_wp*pi**2*lambda*t)*sin(2.0_wp*pi*x1(1:lx1))+exp(-64.0_wp*pi**2*lambda*t)*sin(8.0_wp*pi*x1(1:lx1))
 
   !output
   write(u,*) t
