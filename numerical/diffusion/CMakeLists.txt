@@ -1,11 +1,22 @@
+# WARNING:  MZ edited this file and didn't really know what he was doing...
+
+add_library(PDEparabolic PDEparabolic.f90)
+target_link_libraries(PDEparabolic PRIVATE const ${LAPACK_LIBRARIES})
+target_compile_options(PDEparabolic PRIVATE ${FFLAGS})
+target_include_directories(PDEparabolic PRIVATE ${LAPACK_INCLUDE_DIRS})
+
 add_library(diffusion diffusion.F90)
-target_link_libraries(diffusion PRIVATE const grid ${LAPACK_LIBRARIES})
+target_link_libraries(diffusion PRIVATE const grid PDEparabolic ${LAPACK_LIBRARIES})
 target_compile_options(diffusion PRIVATE ${FFLAGS})
 target_include_directories(diffusion PRIVATE ${LAPACK_INCLUDE_DIRS})
 if(NOT LAPACK_LAPACK95_FOUND)
+  target_sources(PDEparabolic PRIVATE ${CMAKE_SOURCE_DIR}/vendor/lapack95/gbsv.F90)
+  target_compile_definitions(PDEparabolic PRIVATE REALBITS=${realbits})
+
   target_sources(diffusion PRIVATE ${CMAKE_SOURCE_DIR}/vendor/lapack95/gbsv.F90)
   target_compile_definitions(diffusion PRIVATE REALBITS=${realbits})
 endif()
+set_target_properties(PDEparabolic PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 set_target_properties(diffusion PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
 

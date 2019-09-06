@@ -5,8 +5,8 @@ program test_diffusion1D
 !-------a description of the specific problem solved here
 !----------------------------------------------------------------------------
 
-use phys_consts, only: wp,pi
-use diffusion
+use phys_consts, only : wp,pi
+use PDEparabolic, only : backEuler1D,TRBDF21D
 implicit none
 
 integer, parameter :: npts=256,lt=20*5
