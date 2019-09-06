@@ -1,5 +1,7 @@
-%LOAD AND PLOT NUMERICAL SOLUTION
-function test_diffusion1D(fn)
+%LOAD AND PLOT NUMERICAL SOLUTION to diffusion problem
+%return the test data to the user in case they want to 
+%look over the differences and numerical error.
+function [x1,TsEuler,TsBDF2,Tstrue]=test_diffusion1D(fn)
 
 cwd = fileparts(mfilename('fullpath'));
 addpath([cwd,filesep,'../../tests'])

@@ -25,7 +25,7 @@ real(wp), dimension(npts) :: errorEuler,errorBDF2
 
 
 !! create a grid for the calculation
-x1=[ (real(ix1,wp)/real(npts,wp), ix1=-2,npts+1) ]
+x1=[ (real(ix1-1,wp)/real(npts-1,wp), ix1=-1,npts+2) ]
 lx1=npts   !exclude ghost cells in count
 dx1=x1(0:lx1+2)-x1(-1:lx1+1)
 x1i(1:lx1+1)=0.5*(x1(0:lx1)+x1(1:lx1+1))
