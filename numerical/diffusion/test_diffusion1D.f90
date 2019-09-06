@@ -21,6 +21,8 @@ integer :: lx1,it,ix1,u
 real(wp) :: t=0.0,dt
 real(wp) :: Tsminx1,Tsmaxx1
 
+real(wp), dimension(npts) :: errorEuler,errorBDF2
+
 
 !! create a grid for the calculation
 x1=[ (real(ix1,wp)/real(npts,wp), ix1=-2,npts+1) ]
@@ -75,6 +77,19 @@ do it=1,lt
   call writearray(u,TsEuler(1:lx1))
   call writearray(u,TsBDF2(1:lx1))
   call writearray(u,Tstrue(1:lx1))
+
+  !check the validity of the numerical solutions at this time step
+  errorEuler(1:lx1)=TsEuler(1:lx1)-Tstrue(1:lx1)
+  errorBDF2(1:lx1)=TsBDF2(1:lx1)-Tstrue(1:lx1)
+  print*, 'At time step:  ',it,' max error:  ',maxval(abs(errorEuler)),maxval(abs(errorBDF2))
+  if (maxval(abs(errorEuler)) > 0.25_wp) then 
+    print*, 'Time step:  ',it,dt
+    error stop 'Excessive error (large max diff) in backward Euler solution, check time step maybe???'
+  end if
+  if (maxval(abs(errorBDF2)) > 0.25_wp) then
+    print*, 'Time step:  ',it,dt
+    error stop 'Excessive error (large max diff) in backward TRBDF2 solution, check time step maybe???'
+  end if
 end do
 
 
