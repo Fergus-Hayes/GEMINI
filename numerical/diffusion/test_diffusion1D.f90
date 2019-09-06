@@ -70,11 +70,13 @@ do it=1,lt
   !compute analytical solution to compare
   Tstrue(1:lx1)=exp(-4.0_wp*pi**2*lambda*t)*sin(2.0_wp*pi*x1(1:lx1))+exp(-64.0_wp*pi**2*lambda*t)*sin(8.0_wp*pi*x1(1:lx1))
 
+
   !output
   write(u,*) t
   call writearray(u,TsEuler(1:lx1))
   call writearray(u,TsBDF2(1:lx1))
   call writearray(u,Tstrue(1:lx1))
+
 
   !check the validity of the numerical solutions at this time step
   errorEuler(1:lx1)=TsEuler(1:lx1)-Tstrue(1:lx1)
