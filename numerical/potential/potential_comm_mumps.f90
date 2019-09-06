@@ -155,7 +155,7 @@ if (potsolve == 1 .or. potsolve == 3) then    !electrostatic solve or electrosta
 
   !DRIFTS - NEED TO INCLUDE ELECTRIC, WIND-DRIVEN, AND GRAVITATIONAL???
 !  if (lx2/=1) then    !full 3D solve, go with the regular formulas
-  if(flagswap==1) then
+  if(flagswap/=1) then
     do isp=1,lsp
       vs2(1:lx1,1:lx2,1:lx3,isp)=muP(:,:,:,isp)*E2-muH(:,:,:,isp)*E3+muPvn(:,:,:,isp)*vn2-muHvn(:,:,:,isp)*vn3
       vs3(1:lx1,1:lx2,1:lx3,isp)=muH(:,:,:,isp)*E2+muP(:,:,:,isp)*E3+muHvn(:,:,:,isp)*vn2+muPvn(:,:,:,isp)*vn3
