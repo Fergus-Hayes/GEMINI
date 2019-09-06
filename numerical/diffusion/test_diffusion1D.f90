@@ -47,15 +47,11 @@ lambda(:)=1.0_wp     !thermal conductivity
 
 
 !! typical diffusion time, make our time step a fraction of this
-!dt=maxval(dx1)**2/maxval(lambda)
 dt=0.05*1/8.0_wp**2/pi**2/maxval(lambda)
 
 
 !! time interations
 do it=1,lt
-  !time step
-  t=t+dt
-
   !boundary values
   Tsminx1=0.0
   Tsmaxx1=0.0
@@ -68,6 +64,8 @@ do it=1,lt
   E(:)=0.0
   TsEuler(1:lx1)=backEuler1D(TsEuler(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
   TsBDF2(1:lx1)=TRBDF21D(TsBDF2(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
+  t=t+dt
+
 
   !compute analytical solution to compare
   Tstrue(1:lx1)=exp(-4.0_wp*pi**2*lambda*t)*sin(2.0_wp*pi*x1(1:lx1))+exp(-64.0_wp*pi**2*lambda*t)*sin(8.0_wp*pi*x1(1:lx1))
@@ -81,7 +79,9 @@ do it=1,lt
   !check the validity of the numerical solutions at this time step
   errorEuler(1:lx1)=TsEuler(1:lx1)-Tstrue(1:lx1)
   errorBDF2(1:lx1)=TsBDF2(1:lx1)-Tstrue(1:lx1)
-  print*, 'At time step:  ',it,' max error:  ',maxval(abs(errorEuler)),maxval(abs(errorBDF2))
+  if (mod(it,5) == 0) then
+    print*, 'At time step:  ',it,' max error:  ',maxval(abs(errorEuler)),maxval(abs(errorBDF2))
+  end if
   if (maxval(abs(errorEuler)) > 0.25_wp) then 
     print*, 'Time step:  ',it,dt
     error stop 'Excessive error (large max diff) in backward Euler solution, check time step maybe???'
