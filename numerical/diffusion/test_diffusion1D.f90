@@ -13,7 +13,7 @@ integer, parameter :: npts=256,lt=20*5
 character(*), parameter :: outfile='test_diffusion1d.dat'
 
 real(wp), dimension(npts) :: v1,dx1i
-real(wp), dimension(-1:npts+2) :: x1,Ts,Tstrue
+real(wp), dimension(-1:npts+2) :: x1,TsEuler,TsBDF2,Tstrue
 real(wp), dimension(npts) :: lambda,A,B,C,D,E
 real(wp), dimension(npts+1) :: x1i
 real(wp), dimension(0:npts+2) :: dx1
@@ -39,7 +39,8 @@ call writearray(u,x1)
 
 
 !! initial conditions
-Ts(-1:lx1+2)=sin(2.0_wp*pi*x1(-1:lx1+2))+sin(8.0_wp*pi*x1(-1:lx1+2))
+TsEuler(-1:lx1+2)=sin(2.0_wp*pi*x1(-1:lx1+2))+sin(8.0_wp*pi*x1(-1:lx1+2))
+TsBDF2=TsEuler
 lambda(:)=1.0_wp     !thermal conductivity
 
 
@@ -57,20 +58,22 @@ do it=1,lt
   Tsminx1=0.0
   Tsmaxx1=0.0
 
-  !diffuse
+  !solve using two different numerical schemes
   A(:)=0.0
   B(:)=0.0
   C(:)=1.0_wp
   D(:)=lambda(:)
   E(:)=0.0
-  Ts(1:lx1)=backEuler1D(Ts(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
+  TsEuler(1:lx1)=backEuler1D(TsEuler(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
+  TsBDF2(1:lx1)=TRBDF21D(TsBDF2(1:lx1),A,B,C,D,E,Tsminx1,Tsmaxx1,dt,dx1,dx1i)
 
   !compute analytical solution to compare
   Tstrue(1:lx1)=exp(-4.0_wp*pi**2*lambda*t)*sin(2.0_wp*pi*x1(1:lx1))+exp(-64.0_wp*pi**2*lambda*t)*sin(8.0_wp*pi*x1(1:lx1))
 
   !output
   write(u,*) t
-  call writearray(u,Ts(1:lx1))
+  call writearray(u,TsEuler(1:lx1))
+  call writearray(u,TsBDF2(1:lx1))
   call writearray(u,Tstrue(1:lx1))
 end do
 

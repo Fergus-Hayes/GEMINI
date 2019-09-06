@@ -21,7 +21,8 @@ Ts=zeros(lx1,lt);
 t=zeros(lt,1);
 for it=1:lt
   t(it)=fscanf(fid,'%f',1);
-  Ts(:,it)=fscanf(fid,'%f',lx1)';
+  TsEuler(:,it)=fscanf(fid,'%f',lx1)';
+  TsBDF2(:,it)=fscanf(fid,'%f',lx1)';  
   Tstrue(:,it)=fscanf(fid,'%f',lx1)';
 end % for
 
@@ -32,14 +33,21 @@ if ~isinteractive, return, end
 %% plots
 
 figure
-subplot(121);
-imagesc(t,x1(3:end-2),Ts)
+subplot(131);
+imagesc(t,x1(3:end-2),TsEuler)
 colorbar
 xlabel('time (sec)')
 ylabel('distance (m)')
-title('1D diffusion (numerical)')
+title('1D diffusion (backward Euler)')
 
-subplot(122);
+subplot(132);
+imagesc(t,x1(3:end-2),TsBDF2)
+colorbar
+xlabel('time (sec)')
+ylabel('distance (m)')
+title('1D diffusion (TRBDF2)')
+
+subplot(133);
 imagesc(t,x1(3:end-2),Tstrue)
 colorbar
 xlabel('time (sec)')
