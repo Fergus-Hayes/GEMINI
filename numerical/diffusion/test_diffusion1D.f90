@@ -82,11 +82,11 @@ do it=1,lt
   if (mod(it,5) == 0) then
     print*, 'At time step:  ',it,' max error:  ',maxval(abs(errorEuler)),maxval(abs(errorBDF2))
   end if
-  if (maxval(abs(errorEuler)) > 0.25_wp) then 
+  if (maxval(abs(errorEuler)) > 0.05_wp) then    !more that 5% error at a point means something really bad happened...
     print*, 'Time step:  ',it,dt
     error stop 'Excessive error (large max diff) in backward Euler solution, check time step maybe???'
   end if
-  if (maxval(abs(errorBDF2)) > 0.25_wp) then
+  if (maxval(abs(errorBDF2)) > 0.05_wp) then
     print*, 'Time step:  ',it,dt
     error stop 'Excessive error (large max diff) in backward TRBDF2 solution, check time step maybe???'
   end if
