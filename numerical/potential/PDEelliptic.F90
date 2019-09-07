@@ -7,7 +7,6 @@ use, intrinsic:: iso_fortran_env, only: stderr=>error_unit, stdout=>output_unit
 use mpi, only: mpi_comm_world
 use mpimod, only: myid
 use phys_consts, only: wp, debug
-use calculus, only: grad3D1, grad3D2, grad3D3, grad2D1_curv_alt, grad2D3, grad2D3_curv_periodic
 
 implicit none
 
@@ -324,6 +323,12 @@ function elliptic2D_pol_conv_curv(srcterm,SigP2,SigP3,SigH,Cm,v2,v3,Vminx2,Vmaxx
 !-------THIS FORM IS INTENDED TO  WORK WITH CURVILINEAR MESHES.
 !-------NOTE THAT THE FULL GRID VARIABLES (X%DX3ALL, ETC.) MUST
 !-------BE USED HERE!!!
+!-------The equation solved by this subroutine is:
+!-------
+!-------  d/dx2(A dV/dx2) + d/dx3(A dV/dx3) + B dV/dx2 + C dV/x3 + ...
+!-------  d/dx2(D d/dt(dV/dx2)) + d/dx3(D d/dt(dV/dx3)) + ...
+!-------  d/dx2( D*v2 d^V/dx2^2 + D*v3*d^2V/dx3/dx2 ) + ...
+!-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
 !------------------------------------------------------------
 
 real(wp), dimension(:,:), intent(in) :: srcterm,SigP2,SigP3,SigH,Cm,v2,v3    !ZZZ - THESE WILL NEED TO BE MODIFIED CONDUCTIVITIES, AND WE'LL NEED THREE OF THEM
@@ -337,8 +342,6 @@ integer, intent(in) :: it
 
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigPh2    !I'm too lazy to recode these as SigP2h2, etc.
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigPh3
-!    real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigHh2
-!    real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigHh3
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: Cmh2
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: Cmh3
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: gradSigH2,gradSigH3
@@ -373,7 +376,6 @@ if (myid==0) then
 !      lent=5*(lx2-2)*(lx3-2)+2*lx2+2*(lx3-2)    !static model; left here as a reference
   lent=17*(lx2-2)*(lx3-2)+2*lx2+2*(lx3-2)-3*2*(lx2-2)-3*2*(lx3-2)    !interior+boundary-x3_adj-x2_adj.  Note that are 3 sets of entries for each adjacent point
   allocate(ir(lent),ic(lent),M(lent),b(lPhi))
-
   if (debug) print *, 'MUMPS will attempt a solve of size:  ',lx2,lx3
   if (debug) print *, 'Total unknowns and nonzero entries in matrix:  ',lPhi,lent
 
@@ -396,22 +398,6 @@ if (myid==0) then
   gradSigH3=grad2D3(SigH,x,1,lx3)
   !! awkward way of handling this special case derivative which uses x3 as the differential to operate on a 2D array.
 
-!
-!  open(newunit=utrace, form='unformatted', access='stream', file='matrixentryinfo.raw8', status='replace', action='write')
-!  write(utrace) gradSigH2
-!  write(utrace) gradSigH3
-!  write(utrace) SigPh2
-!  write(utrace) SigPh3
-!  write(utrace) Cmh2
-!  write(utrace) Cmh3
-!  write(utrace) SigP2
-!  write(utrace) SigP3
-!  write(utrace) SigH
-!  write(utrace) Cm
-!  write(utrace) v2
-!  write(utrace) v3
-!  close(utrace)
-!
 
   !------------------------------------------------------------
   !-------DEFINE A MATRIX USING SPARSE STORAGE (CENTRALIZED
@@ -864,6 +850,12 @@ function elliptic2D_pol_conv_curv_periodic2(srcterm,SigP,SigH,Cm,v2,v3,Vminx2,Vm
 !-------BE USED HERE!!!
 !-------
 !-------THIS FUNCTION WORKS ON A PERIODIC MESH BY USING A CIRCULANT MATRIX
+!-------The equation solved by this subroutine is:
+!-------
+!-------  d/dx2(A dV/dx2) + d/dx3(A dV/dx3) + B dV/dx2 + C dV/x3 + ...
+!-------  d/dx2(D d/dt(dV/dx2)) + d/dx3(D d/dt(dV/dx3)) + ...
+!-------  d/dx2( D*v2 d^V/dx2^2 + D*v3*d^2V/dx3/dx2 ) + ...
+!-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
 !------------------------------------------------------------
 
 real(wp), dimension(:,:), intent(in) :: srcterm,SigP,SigH,Cm,v2,v3
@@ -877,8 +869,6 @@ integer, intent(in) :: it
 
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigPh2
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigPh3
-!    real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigHh2
-!    real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigHh3
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: Cmh2
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: Cmh3
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)+1) :: gradSigH2,gradSigH3
@@ -935,7 +925,6 @@ if (myid==0) then
 
 
   !ZZZ - THESE NEED TO BE CHANGED INTO CIRCULAR/PERIODIC DERIVATIVES FOR THE X3 DIRECTION
-
   gradSigH2=grad2D1_curv_alt(SigH,x,1,lx2)   !note the alt since we need to use dx2 as differential...  Tricky bug/feature
   gradSigH3=grad2D3_curv_periodic(SigH,x,1,lx3)    !circular difference
 
@@ -1421,7 +1410,7 @@ function elliptic2D_nonint_curv(srcterm,sig0,sigP,Vminx1,Vmaxx1,Vminx3,Vmaxx3,x,
 !-------IS ALWAYS ASSUMED TO BE DIRICHLET.  This subroutine solves equations
 !-------of the form:
 !-------
-!-------   d/dx1(A dV/dx1) + d/dx3(C dV/dx3) = srcterm
+!-------   d/dx1(sig0 dV/dx1) + d/dx3(sigP dV/dx3) = srcterm
 !------------------------------------------------------------
 
 real(wp), dimension(:,:,:), intent(in) :: srcterm,sig0,sigP   !arrays passed in will still have full rank 3
