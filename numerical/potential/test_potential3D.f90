@@ -7,7 +7,7 @@ include 'dmumps_struc.h'
 type (DMUMPS_STRUC) mumps_par
 integer :: ierr
 
-integer, parameter :: npts1=300,npts2=300,npts3=15,outunit=42
+integer, parameter :: npts1=256,npts2=256,npts3=12,outunit=42
 integer, parameter :: lk=npts1*npts2*npts3
 integer :: lent
 integer :: ix1,ix2,ix3,lx1,lx2,lx3

@@ -11,7 +11,7 @@ include 'dmumps_struc.h'
 type (DMUMPS_STRUC) mumps_par
 integer :: ierr
 
-integer, parameter :: npts1=250,npts2=250,outunit=42
+integer, parameter :: npts1=512,npts2=512,outunit=42
 integer, parameter :: lk=npts1*npts2, lent=5*(npts1-2)*(npts2-2)+2*npts1+2*(npts2-2)
 integer :: ix1,ix2,lx1,lx2
 integer :: iPhi,ient
