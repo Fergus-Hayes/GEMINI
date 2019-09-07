@@ -1,6 +1,6 @@
 module PDEelliptic
 
-!! Various tools for solving elliptic partial differential equations - uses MUMPS, scalapack, lapack, and blas
+!! Various tools for solving elliptic partial differential equations - uses MUMPS, scalapack, lapack, openmpi, and blas
 
 use, intrinsic:: iso_fortran_env, only: stderr=>error_unit, stdout=>output_unit
 
@@ -22,7 +22,7 @@ error stop "realbits must be 32 or 64"
 
 integer, dimension(:), pointer, protected, save :: mumps_perm   !cached permutation, unclear whether save is necessary...
 
-public :: elliptic3d_curv, elliptic3D_decimate, elliptic2d_pol_conv_curv, elliptic2d_pol_conv_curv_periodic2, &
+public :: elliptic2d_pol_conv_curv, elliptic2d_pol_conv_curv_periodic2, &
           elliptic2d_nonint_curv, elliptic_workers
 
 contains
