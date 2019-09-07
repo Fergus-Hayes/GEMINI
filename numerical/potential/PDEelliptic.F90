@@ -22,8 +22,7 @@ error stop "realbits must be 32 or 64"
 
 integer, dimension(:), pointer, protected, save :: mumps_perm   !cached permutation, unclear whether save is necessary...
 
-public :: elliptic2d_pol_conv_curv, elliptic2d_pol_conv_curv_periodic2, &
-          elliptic2d_nonint_curv, elliptic_workers
+public :: elliptic3D_cart,elliptic2D_cart,elliptic2D_polarization,elliptic2D_polarization_perioidic,elliptic_workers
 
 contains
 
@@ -309,8 +308,9 @@ error stop "realbits must be 32 or 64"
 
 end function elliptic3D_cart
 
-!
-function elliptic2D_pol_conv_curv(srcterm,SigP2,SigP3,SigH,Cm,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,x,Phi0,perflag,it)
+
+function elliptic2D_polarization(srcterm,SigP2,SigP3,SigH,gradSigH2,gradSigH3,Cm,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,dx1, &
+                                 dx1i,dx2all,dx2iall,dx3all,dx3iall,Phi0,perflag,it)
 
 !------------------------------------------------------------
 !-------SOLVE IONOSPHERIC POTENTIAL EQUATION IN 2D USING MUMPS
@@ -325,17 +325,25 @@ function elliptic2D_pol_conv_curv(srcterm,SigP2,SigP3,SigH,Cm,v2,v3,Vminx2,Vmaxx
 !-------BE USED HERE!!!
 !-------The equation solved by this subroutine is:
 !-------
-!-------  d/dx2(A dV/dx2) + d/dx3(A dV/dx3) + B dV/dx2 + C dV/x3 + ...
+!-------  d/dx2(A dV/dx2) + d/dx3(A dV/dx3) + B dV/dx2 - C dV/x3 + ...
 !-------  d/dx2(D d/dt(dV/dx2)) + d/dx3(D d/dt(dV/dx3)) + ...
 !-------  d/dx2( D*v2 d^V/dx2^2 + D*v3*d^2V/dx3/dx2 ) + ...
 !-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
+!-------  
+!-------  for GEMINI:  A=SigP, B=d/dx3(SigH), C=d/dx2(SigH), 
+!-------               D=Cm
 !------------------------------------------------------------
 
-real(wp), dimension(:,:), intent(in) :: srcterm,SigP2,SigP3,SigH,Cm,v2,v3    !ZZZ - THESE WILL NEED TO BE MODIFIED CONDUCTIVITIES, AND WE'LL NEED THREE OF THEM
+real(wp), dimension(:,:), intent(in) :: srcterm,SigP2,SigP3,SigH,Cm,gradSigH2,gradSigH3,v2,v3   !ZZZ - THESE WILL NEED TO BE MODIFIED CONDUCTIVITIES, AND WE'LL NEED THREE OF THEM
 real(wp), dimension(:), intent(in) :: Vminx2,Vmaxx2
 real(wp), dimension(:), intent(in) :: Vminx3,Vmaxx3
 real(wp), intent(in) :: dt
-type(curvmesh), intent(in) :: x
+real(wp), dimension(0:), intent(in) :: dx1         !backward diffs start at index zero due to ghost cells
+real(wp), dimension(:), intent(in) :: dx1i         !centered diffs do not include any ghost cells
+real(wp), dimension(0:), intent(in) :: dx2all
+real(wp), dimension(:), intent(in) :: dx2iall
+real(wp), dimension(0:), intent(in) :: dx3all
+real(wp), dimension(:), intent(in) :: dx3iall
 real(wp), dimension(:,:), intent(in) :: Phi0
 logical, intent(in) :: perflag
 integer, intent(in) :: it
@@ -344,7 +352,6 @@ real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigPh2    !I'm too lazy 
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: SigPh3
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: Cmh2
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: Cmh3
-real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: gradSigH2,gradSigH3
 
 real(wp) :: coeff    !coefficient for calculating polarization terms
 integer :: ix2,ix3,lx2,lx3    !this overwrites the
@@ -365,7 +372,7 @@ type (DMUMPS_STRUC) mumps_par
 error stop "realbits must be 32 or 64"
 #endif
 
-real(wp), dimension(size(SigP2,1),size(SigP2,2)) :: elliptic2D_pol_conv_curv
+real(wp), dimension(size(SigP2,1),size(SigP2,2)) :: elliptic2D_polarization
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
@@ -391,20 +398,11 @@ if (myid==0) then
   Cmh3(:,2:lx3)=0.5d0*(Cm(:,1:lx3-1)+Cm(:,2:lx3))
 
 
-
-  !gradSigH2=grad2D1(SigH,x,1,lx2)   !x2 is now 1st index and x3 is second...  This one appears to be the problem.  This issue here is that grad2D1 automatically uses x%dx1 as the differential element...
-  gradSigH2=grad2D1_curv_alt(SigH,x,1,lx2)
-  !! note the alt since we need to use dx2 as differential...  Tricky bug/feature
-  gradSigH3=grad2D3(SigH,x,1,lx3)
-  !! awkward way of handling this special case derivative which uses x3 as the differential to operate on a 2D array.
-
-
   !------------------------------------------------------------
   !-------DEFINE A MATRIX USING SPARSE STORAGE (CENTRALIZED
   !-------ASSEMBLED MATRIX INPUT, SEE SECTION 4.5 OF MUMPS USER
   !-------GUIDE).
   !------------------------------------------------------------
-
   !LOAD UP MATRIX ELEMENTS
   M(:)=0d0
   b=pack(srcterm,.true.)           !boundaries overwritten later, polarization terms also added later.
@@ -440,7 +438,7 @@ if (myid==0) then
       else                      !INTERIOR LOCATION
         !ix2-1,ix3-2 grid point
         coeff=-1d0*Cm(ix2,ix3-1)*v2(ix2,ix3-1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)+x%dx3all(ix3))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)+dx3all(ix3))*(dx2all(ix2)+dx2all(ix2+1)) )
         if (ix3==2) then    !out of bounds, use nearest BC, and add to known vector
           b(iPhi)=b(iPhi)-coeff*Vminx3(ix2-1)
         else    !in bounds, add to matrix
@@ -454,7 +452,7 @@ if (myid==0) then
 
 
         !ix2,ix3-2 grid point
-        coeff=-1d0*Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)*x%dx3iall(ix3-1)) )
+        coeff=-1d0*Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)*dx3iall(ix3-1)) )
         if (ix3==2) then    !bit of intentional code duplication here and in the following sections to keep things organized in a way I can debug...
           b(iPhi)=b(iPhi)-coeff*Vminx3(ix2)
         else
@@ -469,7 +467,7 @@ if (myid==0) then
 
         !ix2+1,ix3-2 grid point
         coeff=Cm(ix2,ix3-1)*v2(ix2,ix3-1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)+x%dx3all(ix3))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)+dx3all(ix3))*(dx2all(ix2)+dx2all(ix2+1)) )
         if (ix3==2) then
           b(iPhi)=b(iPhi)-coeff*Vminx3(ix2+1)
         else
@@ -484,7 +482,7 @@ if (myid==0) then
 
         !ix2-2,ix3-1
         coeff=-1d0*Cm(ix2-1,ix3)*v3(ix2-1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)+x%dx2all(ix2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)+dx2all(ix2))*(dx3all(ix3)+dx3all(ix3+1)) )
         if (ix2==2) then
           b(iPhi)=b(iPhi)-coeff*Vminx2(ix3-1)
         else
@@ -501,20 +499,20 @@ if (myid==0) then
         ir(ient)=iPhi
         ic(ient)=iPhi-lx2
 
-        M(ient)=SigPh3(ix2,ix3)/(x%dx3iall(ix3)*x%dx3all(ix3))+gradSigH2(ix2,ix3)/(x%dx3all(ix3)+x%dx3all(ix3+1))    !static terms
+        M(ient)=SigPh3(ix2,ix3)/(dx3iall(ix3)*dx3all(ix3))+gradSigH2(ix2,ix3)/(dx3all(ix3)+dx3all(ix3+1))    !static terms
 
-        coeff=Cmh3(ix2,ix3)/(dt*x%dx3iall(ix3)*x%dx3all(ix3))
+        coeff=Cmh3(ix2,ix3)/(dt*dx3iall(ix3)*dx3all(ix3))
         M(ient)=M(ient)+coeff   !polarization time derivative terms
         b(iPhi)=b(iPhi)+coeff*Phi0(ix2,ix3-1)   !add in polarziation terms that include previous time step potential at this grid point
 
-        coeff=Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3)*x%dx3iall(ix3-1)) )+ &
-              Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)*x%dx3iall(ix3-1)) )
+        coeff=Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3)*dx3iall(ix3-1)) )+ &
+              Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)*dx3iall(ix3-1)) )
         M(ient)=M(ient)+coeff   !d/dx3( Cm*v3*d^2/dx3^2(Phi) ) term
 
         coeff=Cm(ix2+1,ix3)*v3(ix2+1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+1)+x%dx2all(ix2+2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )+ &
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+1)+dx2all(ix2+2))*(dx3all(ix3)+dx3all(ix3+1)) )+ &
               Cm(ix2-1,ix3)*v3(ix2-1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)+x%dx2all(ix2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)+dx2all(ix2))*(dx3all(ix3)+dx3all(ix3+1)) )
         M(ient)=M(ient)+coeff   !d/dx2( Cm*v3*d^2/dx2dx3(Phi) )
 
         ient=ient+1
@@ -522,7 +520,7 @@ if (myid==0) then
 
         !ix2+2,ix3-1 grid point
         coeff=-1d0*Cm(ix2+1,ix3)*v3(ix2+1,ix3)/ &
-              ( (x%dx2all(ix2+1)+x%dx2all(ix2+2))*(x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2+1)+dx2all(ix2+2))*(dx2all(ix2)+dx2all(ix2+1))*(dx3all(ix3)+dx3all(ix3+1)) )
         if (ix2==lx2-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx2(ix3-1)
         else
@@ -536,7 +534,7 @@ if (myid==0) then
 
 
         !ix2-2,ix3 grid point
-        coeff=-1d0*Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)*x%dx2iall(ix2-1)) )
+        coeff=-1d0*Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)*dx2iall(ix2-1)) )
         if (ix2==2) then
           b(iPhi)=b(iPhi)-coeff*Vminx2(ix3)
         else
@@ -553,20 +551,20 @@ if (myid==0) then
         ir(ient)=iPhi
         ic(ient)=iPhi-1
 
-        M(ient)=SigPh2(ix2,ix3)/(x%dx2iall(ix2)*x%dx2all(ix2))-gradSigH3(ix2,ix3)/(x%dx2all(ix2)+x%dx2all(ix2+1))    !static
+        M(ient)=SigPh2(ix2,ix3)/(dx2iall(ix2)*dx2all(ix2))-gradSigH3(ix2,ix3)/(dx2all(ix2)+dx2all(ix2+1))    !static
 
-        coeff=Cmh2(ix2,ix3)/(dt*x%dx2iall(ix2)*x%dx2all(ix2))
+        coeff=Cmh2(ix2,ix3)/(dt*dx2iall(ix2)*dx2all(ix2))
         M(ient)=M(ient)+coeff    !pol. time deriv.
         b(iPhi)=b(iPhi)+coeff*Phi0(ix2-1,ix3)    !BC's and pol. time deriv.
 
-        coeff=Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2)*x%dx2iall(ix2-1)) )+ &
-              Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)*x%dx2iall(ix2-1)) )
+        coeff=Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2)*dx2iall(ix2-1)) )+ &
+              Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)*dx2iall(ix2-1)) )
         M(ient)=M(ient)+coeff    !d/dx2( Cm*v2*d^2/dx2^2(Phi) ) term
 
         coeff=Cm(ix2,ix3+1)*v2(ix2,ix3+1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+1)+x%dx3all(ix3+2))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )+ &
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+1)+dx3all(ix3+2))*(dx2all(ix2)+dx2all(ix2+1)) )+ &
               Cm(ix2,ix3-1)*v2(ix2,ix3-1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)+x%dx3all(ix3))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)+dx3all(ix3))*(dx2all(ix2)+dx2all(ix2+1)) )
         M(ient)=M(ient)+coeff     !d/dx3( Cm*v2*d^2/dx3dx2(Phi) )
 
         ient=ient+1
@@ -576,24 +574,24 @@ if (myid==0) then
         ir(ient)=iPhi
         ic(ient)=iPhi
 
-        M(ient)=-1d0*SigPh2(ix2+1,ix3)/(x%dx2iall(ix2)*x%dx2all(ix2+1)) &
-                -1d0*SigPh2(ix2,ix3)/(x%dx2iall(ix2)*x%dx2all(ix2)) &
-                -1d0*SigPh3(ix2,ix3+1)/(x%dx3iall(ix3)*x%dx3all(ix3+1)) &
-                -1d0*SigPh3(ix2,ix3)/(x%dx3iall(ix3)*x%dx3all(ix3))    !static
+        M(ient)=-1d0*SigPh2(ix2+1,ix3)/(dx2iall(ix2)*dx2all(ix2+1)) &
+                -1d0*SigPh2(ix2,ix3)/(dx2iall(ix2)*dx2all(ix2)) &
+                -1d0*SigPh3(ix2,ix3+1)/(dx3iall(ix3)*dx3all(ix3+1)) &
+                -1d0*SigPh3(ix2,ix3)/(dx3iall(ix3)*dx3all(ix3))    !static
 
-        coeff=-1d0*Cmh2(ix2+1,ix3)/(dt*x%dx2iall(ix2)*x%dx2all(ix2+1)) &
-              -1d0*Cmh2(ix2,ix3)/(dt*x%dx2iall(ix2)*x%dx2all(ix2)) &
-              -1d0*Cmh3(ix2,ix3+1)/(dt*x%dx3iall(ix3)*x%dx3all(ix3+1)) &
-              -1d0*Cmh3(ix2,ix3)/(dt*x%dx3iall(ix3)*x%dx3all(ix3))
+        coeff=-1d0*Cmh2(ix2+1,ix3)/(dt*dx2iall(ix2)*dx2all(ix2+1)) &
+              -1d0*Cmh2(ix2,ix3)/(dt*dx2iall(ix2)*dx2all(ix2)) &
+              -1d0*Cmh3(ix2,ix3+1)/(dt*dx3iall(ix3)*dx3all(ix3+1)) &
+              -1d0*Cmh3(ix2,ix3)/(dt*dx3iall(ix3)*dx3all(ix3))
         M(ient)=M(ient)+coeff    !pol. time deriv.
         b(iPhi)=b(iPhi)+coeff*Phi0(ix2,ix3)    !BC's and pol. time deriv.
 
-        coeff=Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+1)*x%dx2iall(ix2+1)) )+ &
-              (-1d0)*Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2)*x%dx2iall(ix2-1)) )
+        coeff=Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+1)*dx2iall(ix2+1)) )+ &
+              (-1d0)*Cm(ix2-1,ix3)*v2(ix2-1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2)*dx2iall(ix2-1)) )
         M(ient)=M(ient)+coeff    !d/dx2( Cm*v2*d^2/dx2^2(Phi) ) term
 
-        coeff=Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+1)*x%dx3all(ix3+1)) )+ &
-              (-1d0)*Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3)*x%dx3iall(ix3-1)) )
+        coeff=Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+1)*dx3all(ix3+1)) )+ &
+              (-1d0)*Cm(ix2,ix3-1)*v3(ix2,ix3-1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3)*dx3iall(ix3-1)) )
         M(ient)=M(ient)+coeff    !d/dx3( Cm*v3*d^2/dx3^2(Phi) ) term
 
         ient=ient+1
@@ -603,27 +601,27 @@ if (myid==0) then
         ir(ient)=iPhi
         ic(ient)=iPhi+1
 
-        M(ient)=SigPh2(ix2+1,ix3)/(x%dx2iall(ix2)*x%dx2all(ix2+1))+gradSigH3(ix2,ix3)/(x%dx2all(ix2)+x%dx2all(ix2+1))    !static
+        M(ient)=SigPh2(ix2+1,ix3)/(dx2iall(ix2)*dx2all(ix2+1))+gradSigH3(ix2,ix3)/(dx2all(ix2)+dx2all(ix2+1))    !static
 
-        coeff=Cmh2(ix2+1,ix3)/(dt*x%dx2iall(ix2)*x%dx2all(ix2+1))
+        coeff=Cmh2(ix2+1,ix3)/(dt*dx2iall(ix2)*dx2all(ix2+1))
         M(ient)=M(ient)+coeff    !pol. time deriv. terms
         b(iPhi)=b(iPhi)+coeff*Phi0(ix2+1,ix3)    !BC's and pol. time deriv.
 
-        coeff=-1d0*Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+2)*x%dx2iall(ix2+1)) )+ &
-              (-1d0)*Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+1)*x%dx2iall(ix2+1)) )
+        coeff=-1d0*Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+2)*dx2iall(ix2+1)) )+ &
+              (-1d0)*Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+1)*dx2iall(ix2+1)) )
         M(ient)=M(ient)+coeff    !d/dx2( Cm*v2*d^2/dx2^2(Phi) ) term
 
         coeff=-1d0*Cm(ix2,ix3+1)*v2(ix2,ix3+1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+1)+x%dx3all(ix3+2))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )+ &
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+1)+dx3all(ix3+2))*(dx2all(ix2)+dx2all(ix2+1)) )+ &
               (-1d0)*Cm(ix2,ix3-1)*v2(ix2,ix3-1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3-1)+x%dx3all(ix3))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3-1)+dx3all(ix3))*(dx2all(ix2)+dx2all(ix2+1)) )
         M(ient)=M(ient)+coeff    !d/dx3( Cm*v2*d^2/dx3dx2(Phi) )
 
         ient=ient+1
 
 
         !ix2+2,ix3 grid point
-        coeff=Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+2)*x%dx2iall(ix2+1)) )
+        coeff=Cm(ix2+1,ix3)*v2(ix2+1,ix3)/( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+2)*dx2iall(ix2+1)) )
         if (ix2==lx2-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx2(ix3)
         else
@@ -638,7 +636,7 @@ if (myid==0) then
 
         !ix2-2,ix3+1 grid point
         coeff=Cm(ix2-1,ix3)*v3(ix2-1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)+x%dx2all(ix2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)+dx2all(ix2))*(dx3all(ix3)+dx3all(ix3+1)) )
         if (ix2==2) then
           b(iPhi)=b(iPhi)-coeff*Vminx2(ix3+1)
         else
@@ -655,20 +653,20 @@ if (myid==0) then
         ir(ient)=iPhi
         ic(ient)=iPhi+lx2
 
-        M(ient)=SigPh3(ix2,ix3+1)/(x%dx3iall(ix3)*x%dx3all(ix3+1))-gradSigH2(ix2,ix3)/(x%dx3all(ix3)+x%dx3all(ix3+1))    !static
+        M(ient)=SigPh3(ix2,ix3+1)/(dx3iall(ix3)*dx3all(ix3+1))-gradSigH2(ix2,ix3)/(dx3all(ix3)+dx3all(ix3+1))    !static
 
-        coeff=Cmh3(ix2,ix3+1)/(dt*x%dx3iall(ix3)*x%dx3all(ix3+1))
+        coeff=Cmh3(ix2,ix3+1)/(dt*dx3iall(ix3)*dx3all(ix3+1))
         M(ient)=M(ient)+coeff    !pol. time deriv.
         b(iPhi)=b(iPhi)+coeff*Phi0(ix2,ix3+1)    !BC's and pol. time deriv.
 
-        coeff=-1d0*Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+2)*x%dx3iall(ix3+1)) )+ &
-              (-1d0)*Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+1)*x%dx3iall(ix3+1)) )
+        coeff=-1d0*Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+2)*dx3iall(ix3+1)) )+ &
+              (-1d0)*Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+1)*dx3iall(ix3+1)) )
         M(ient)=M(ient)+coeff    !d/dx3( Cm*v3*d^2/dx3^2(Phi) ) term
 
         coeff=-1d0*Cm(ix2+1,ix3)*v3(ix2+1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+1)+x%dx2all(ix2+2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )+ &
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+1)+dx2all(ix2+2))*(dx3all(ix3)+dx3all(ix3+1)) )+ &
               (-1d0)*Cm(ix2-1,ix3)*v3(ix2-1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2-1)+x%dx2all(ix2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2-1)+dx2all(ix2))*(dx3all(ix3)+dx3all(ix3+1)) )
         M(ient)=M(ient)+coeff    !d/dx2( Cm*v3*d^2/dx2dx3(Phi) )
 
         ient=ient+1
@@ -676,7 +674,7 @@ if (myid==0) then
 
         !ix2+2,ix3+1 grid point
         coeff=Cm(ix2+1,ix3)*v3(ix2+1,ix3)/ &
-              ( (x%dx2all(ix2)+x%dx2all(ix2+1))*(x%dx2all(ix2+1)+x%dx2all(ix2+2))*(x%dx3all(ix3)+x%dx3all(ix3+1)) )
+              ( (dx2all(ix2)+dx2all(ix2+1))*(dx2all(ix2+1)+dx2all(ix2+2))*(dx3all(ix3)+dx3all(ix3+1)) )
         if (ix2==lx2-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx2(ix3+1)
         else
@@ -691,7 +689,7 @@ if (myid==0) then
 
         !ix2-1,ix3+2 grid point
         coeff=-1d0*Cm(ix2,ix3+1)*v2(ix2,ix3+1)/ &
-              ( (x%dx3all(ix3+1)+x%dx3all(ix3+2))*(x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3+1)+dx3all(ix3+2))*(dx3all(ix3)+dx3all(ix3+1))*(dx2all(ix2)+dx2all(ix2+1)) )
         if (ix3==lx3-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx3(ix2-1)
         else
@@ -705,7 +703,7 @@ if (myid==0) then
 
 
         !ix2,ix3+2 grid point
-        coeff=Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+2)*x%dx3iall(ix3+1)) )
+        coeff=Cm(ix2,ix3+1)*v3(ix2,ix3+1)/( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+2)*dx3iall(ix3+1)) )
         if (ix3==lx3-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx3(ix2)
         else
@@ -720,7 +718,7 @@ if (myid==0) then
 
         !ix2+1,ix3+2 grid point
         coeff=Cm(ix2,ix3+1)*v2(ix2,ix3+1)/ &
-              ( (x%dx3all(ix3)+x%dx3all(ix3+1))*(x%dx3all(ix3+1)+x%dx3all(ix3+2))*(x%dx2all(ix2)+x%dx2all(ix2+1)) )
+              ( (dx3all(ix3)+dx3all(ix3+1))*(dx3all(ix3+1)+dx3all(ix3+2))*(dx2all(ix2)+dx2all(ix2+1)) )
         if (ix3==lx3-1) then
           b(iPhi)=b(iPhi)-coeff*Vmaxx3(ix2+1)
         else
@@ -795,7 +793,7 @@ error stop "realbits must be 32 or 64"
 
 !> check if Mumps error occurred
 if (mumps_par%INFO(1) < 0 .or. mumps_par%INFOG(1) < 0) then
-  write(stderr, *) 'Gemini:potential_mumps:elliptic2D_pol_conv_curv  MUMPS ERROR: details:'
+  write(stderr, *) 'Gemini:potential_mumps:elliptic2D_polarization  MUMPS ERROR: details:'
   write(stderr, *) 'Mumps Error: INFO(1)',mumps_par%INFO(1),'INFO(2)',mumps_par%INFO(2)
   write(stderr, *) 'Mumps Error: INFOG(1)',mumps_par%INFOG(1),'INFOG(2)',mumps_par%INFOG(2)
   error stop
@@ -813,7 +811,7 @@ if ( myid==0 ) then
     mumps_perm=mumps_par%SYM_PERM
   end if
 
-  elliptic2D_pol_conv_curv=reshape(mumps_par%RHS,[lx2,lx3])
+  elliptic2D_polarization=reshape(mumps_par%RHS,[lx2,lx3])
 
   if (debug) print *, 'Now attempting deallocations...'
 
@@ -832,10 +830,11 @@ call DMUMPS(mumps_par)
 error stop "realbits must be 32 or 64"
 #endif
 
-end function elliptic2D_pol_conv_curv
+end function elliptic2D_polarization
 
 
-function elliptic2D_pol_conv_curv_periodic2(srcterm,SigP,SigH,Cm,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,x,Phi0,perflag,it)
+function elliptic2D_polarization_periodic(srcterm,SigP,SigH,gradSigH2,gradSigH3,Cm,v2,v3,Vminx2,Vmaxx2, &
+                                  Vminx3,Vmaxx3,dt,dx1,dx1i,dx2all,dx2iall,dx3all,dx3iall,Phi0,perflag,it)
 
 !------------------------------------------------------------
 !-------SOLVE IONOSPHERIC POTENTIAL EQUATION IN 2D USING MUMPS
@@ -858,11 +857,16 @@ function elliptic2D_pol_conv_curv_periodic2(srcterm,SigP,SigH,Cm,v2,v3,Vminx2,Vm
 !-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
 !------------------------------------------------------------
 
-real(wp), dimension(:,:), intent(in) :: srcterm,SigP,SigH,Cm,v2,v3
+real(wp), dimension(:,:), intent(in) :: srcterm,SigP,SigH,gradSigH2,gradSigH3,Cm,v2,v3
 real(wp), dimension(:), intent(in) :: Vminx2,Vmaxx2
 real(wp), dimension(:), intent(in) :: Vminx3,Vmaxx3
 real(wp), intent(in) :: dt
-type(curvmesh), intent(in) :: x
+real(wp), dimension(0:), intent(in) :: dx1         !backward diffs start at index zero due to ghost cells
+real(wp), dimension(:), intent(in) :: dx1i         !centered diffs do not include any ghost cells
+real(wp), dimension(0:), intent(in) :: dx2all
+real(wp), dimension(:), intent(in) :: dx2iall
+real(wp), dimension(0:), intent(in) :: dx3all
+real(wp), dimension(:), intent(in) :: dx3iall
 real(wp), dimension(:,:), intent(in) :: Phi0
 logical, intent(in) :: perflag
 integer, intent(in) :: it
@@ -871,7 +875,6 @@ real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigPh2
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: SigPh3
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: Cmh2
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)) :: Cmh3
-real(wp), dimension(1:size(SigP,1),1:size(SigP,2)+1) :: gradSigH2,gradSigH3
 
 real(wp) :: coeff    !coefficient for calculating polarization terms
 integer :: ix2,ix3,lx2,lx3    !this overwrites the values stored in the grid module, which is fine, but perhaps redundant
@@ -894,7 +897,7 @@ integer :: lcount,ix2tmp,ix3tmp
 
 real(wp), dimension(size(SigP,1),size(SigP,2)) :: tmpresults
 
-real(wp), dimension(size(SigP,1),size(SigP,2)) :: elliptic2D_pol_conv_curv_periodic2
+real(wp), dimension(size(SigP,1),size(SigP,2)) :: elliptic2D_polarization_periodic
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
@@ -923,18 +926,11 @@ if (myid==0) then
   Cmh3(:,2:lx3)=0.5d0*(Cm(:,1:lx3-1)+Cm(:,2:lx3))
 
 
-
-  !ZZZ - THESE NEED TO BE CHANGED INTO CIRCULAR/PERIODIC DERIVATIVES FOR THE X3 DIRECTION
-  gradSigH2=grad2D1_curv_alt(SigH,x,1,lx2)   !note the alt since we need to use dx2 as differential...  Tricky bug/feature
-  gradSigH3=grad2D3_curv_periodic(SigH,x,1,lx3)    !circular difference
-
-
   !------------------------------------------------------------
   !-------DEFINE A MATRIX USING SPARSE STORAGE (CENTRALIZED
   !-------ASSEMBLED MATRIX INPUT, SEE SECTION 4.5 OF MUMPS USER
   !-------GUIDE).
   !------------------------------------------------------------
-
   if (debug) print *, 'Loading up matrix entries...'
 
   !LOAD UP MATRIX ELEMENTS
@@ -1355,7 +1351,7 @@ error stop "realbits must be 32 or 64"
 
 !> check if Mumps error occurred
 if (mumps_par%INFO(1) < 0 .or. mumps_par%INFOG(1) < 0) then
-  write(stderr, *) 'Gemini:potential_mumps:elliptic2D_pol_conv_curv_periodic2  MUMPS ERROR: details:'
+  write(stderr, *) 'Gemini:potential_mumps:elliptic2D_polarization_periodic  MUMPS ERROR: details:'
   write(stderr, *) 'Mumps Error: INFO(1)',mumps_par%INFO(1),'INFO(2)',mumps_par%INFO(2)
   write(stderr, *) 'Mumps Error: INFOG(1)',mumps_par%INFOG(1),'INFOG(2)',mumps_par%INFOG(2)
   error stop
@@ -1376,7 +1372,7 @@ if ( myid==0 ) then
  !IF WE HAVE DONE A PERIODIC SOLVE, THE LAST GRID POINT NEEDS TO BE IGNORED WHEN WE RESHAPE THE POTENTIAL ARRAY.
 
   tmpresults=reshape(mumps_par%RHS,[lx2,lx3])
-  elliptic2D_pol_conv_curv_periodic2=tmpresults(1:lx2,1:lx3)    !sort of superfluous now that hte solve size is the same as the grid
+  elliptic2D_polarization_periodic=tmpresults(1:lx2,1:lx3)    !sort of superfluous now that hte solve size is the same as the grid
 
   if (debug) print *, 'Now attempting deallocations...'
 
@@ -1395,10 +1391,10 @@ call DMUMPS(mumps_par)
 error stop "realbits must be 32 or 64"
 #endif
 
-end function elliptic2D_pol_conv_curv_periodic2
+end function elliptic2D_polarization_periodic
 
 
-function elliptic2D_nonint_curv(srcterm,sig0,sigP,Vminx1,Vmaxx1,Vminx3,Vmaxx3,x,flagdirich,perflag,it)
+function elliptic2D_cart(srcterm,sig0,sigP,Vminx1,Vmaxx1,Vminx3,Vmaxx3,x,flagdirich,perflag,it)
 
 !------------------------------------------------------------
 !-------SOLVE IONOSPHERIC POTENTIAL EQUATION IN 2D USING MUMPS
@@ -1687,7 +1683,7 @@ call DMUMPS(mumps_par)
 error stop "realbits must be 32 or 64"
 #endif
 
-end function elliptic2D_nonint_curv
+end function elliptic2D_cart
 
 
 subroutine quiet_mumps(obj)
