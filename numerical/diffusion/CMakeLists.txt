@@ -21,7 +21,7 @@ set_target_properties(diffusion PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINA
 
 
 add_executable(test_diffusion1D test_diffusion1D.f90)
-target_link_libraries(test_diffusion1D diffusion const)
+target_link_libraries(test_diffusion1D diffusion const PDEparabolic)
 set_target_properties(test_diffusion1D PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # WORKING_DIRECTORY is needed to write output file to repeatable path.

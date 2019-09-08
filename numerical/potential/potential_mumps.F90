@@ -98,9 +98,9 @@ real(wp), dimension(size(srcterm,1),size(srcterm,2),size(srcterm,3)) :: potentia
 
 
 !SYSTEM SIZES
-lx1=size(srcterm,1)    !These will be full grid sizes if called from root (only acceptable thing)
-lx2=size(srcterm,2)
-lx3=size(srcterm,3)
+lx1=x%lx1    !These will be full grid sizes if called from root (only acceptable thing)
+lx2=x%lx2all
+lx3=x%lx3all
 
 
 !COMPUTE AUXILIARY COEFFICIENTS TO PASS TO CART SOLVER
@@ -278,17 +278,13 @@ integer, intent(in) :: it
 
 real(wp), dimension(1:size(SigP2,1),1:size(SigP2,2)) :: gradSigH2,gradSigH3
 integer :: utrace
-
-#if REALBITS==32
-type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
-#else
-error stop "realbits must be 32 or 64"
-#endif
+integer :: lx2,lx3
 
 real(wp), dimension(size(SigP2,1),size(SigP2,2)) :: potential2D_polarization
 
+
+lx2=x%lx2all    !use full grid sizes
+lx3=x%lx3all
 
 !gradSigH2=grad2D1(SigH,x,1,lx2)   !x2 is now 1st index and x3 is second...  This one appears to be the problem.  This issue here is that grad2D1 automatically uses x%dx1 as the differential element...
 gradSigH2=grad2D1_curv_alt(SigH,x,1,lx2)
@@ -329,10 +325,13 @@ real(wp), dimension(:,:), intent(in) :: Phi0
 logical, intent(in) :: perflag
 integer, intent(in) :: it
 
-
 real(wp), dimension(1:size(SigP,1),1:size(SigP,2)+1) :: gradSigH2,gradSigH3
 real(wp), dimension(size(SigP,1),size(SigP,2)) :: potential2D_polarization_periodic
+integer :: lx2,lx3
 
+
+lx2=x%lx2all    !use full grid sizes
+lx3=x%lx3all
 
 !ZZZ - THESE NEED TO BE CHANGED INTO CIRCULAR/PERIODIC DERIVATIVES FOR THE X3 DIRECTION
 gradSigH2=grad2D1_curv_alt(SigH,x,1,lx2)   !note the alt since we need to use dx2 as differential...  Tricky bug/feature
@@ -369,7 +368,7 @@ integer, intent(in) :: it
 real(wp), dimension(size(sig0,1),1,size(sig0,3)) :: potential2D_fieldresolved
 
 potential2D_fieldresolved=elliptic2D_cart(srcterm,sig0,sigP,Vminx1,Vmaxx1,Vminx3,Vmaxx3, &
-                     x%dx1,x%dx1i,x%dx2all,x%dx2iall,x%dx3all,x%dx3iall,flagdirich,perflag,it)
+                     x%dx1,x%dx1i,x%dx3all,x%dx3iall,flagdirich,perflag,gridflag,it)
 
 end function potential2D_fieldresolved
 

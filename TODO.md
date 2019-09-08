@@ -44,8 +44,9 @@ This file is intended to document development priorities for the GEMINI project.
 * X There are now numerous versions of routines corresponding to message passing in x3 vs. on a x2/x3 process grid.  Somehow the x3 routines need to be kept as they may be faster in some (hopefully unusual) situations.  Michael suggests a submodule...
 * X Some modules have now become excessively large, e.g. mpimod and calculus...  These need to be organized and split up
 * Handling of metric factors in the potential solves is sloppy - need to be passing into solver and used to eval. geometric terms there - would be more clear to reader...
-* elliptic solvers do not need to check for root vs. workers anymore; is done from calling functions
+* elliptic solvers do not need to check for root vs. workers anymore; is done from calling functions.  Related to this there is now a ton of duplication in the potential_comm routines...
 * X Clean up neutral interpolation code...
+* indexing in elliptic2D_periodic is extremely messy
 
 
 ## Coding style and standards issues
@@ -53,7 +54,8 @@ This file is intended to document development priorities for the GEMINI project.
 
 
 ## Feature requests
-* (INITIAL IMPLEMENTATION COMPLETE) Parallel domain decomposition in x2 *and* x3 - this is a big task that is likely to be left aside until I can renew funding.  It's also questionable how useful it is at this point where my typical runs are 32-256 cores (although undoubtedly it may become useful for runs with thousands of cores).  I've found good speedup even dividing the x3 dimension into slabs 2 grid points wide; although that means passing essentially all the grid data around via mpi, the large number of operations per slab means that the effective overhead here is not too much to prevent this from being useful.  However, for simulations that run with GLOW this will massively speed things up...
+
+* (COMPLETE) Parallel domain decomposition in x2 *and* x3 - this is a big task that is likely to be left aside until I can renew funding.  It's also questionable how useful it is at this point where my typical runs are 32-256 cores (although undoubtedly it may become useful for runs with thousands of cores).  I've found good speedup even dividing the x3 dimension into slabs 2 grid points wide; although that means passing essentially all the grid data around via mpi, the large number of operations per slab means that the effective overhead here is not too much to prevent this from being useful.  However, for simulations that run with GLOW this will massively speed things up...
 * (SOMEWHAT IMPORTANT) Periodically updating background neutral atmosphere - should really be done for simulations more than a few hours long but will affect performance
 * (EFFICIENCY) Exclusion of null points from field aligned advection, thermal conduction, and source terms - could improve performance
 * (INITIAL IMPLEMENTATION STARTED) HDF5 file input and output

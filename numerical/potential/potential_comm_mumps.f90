@@ -15,7 +15,7 @@ use grid, only: curvmesh,flagswap, gridflag
 use collisions, only: conductivities, capacitance
 use calculus, only: div3d, integral3d1, grad3d1, grad3d2, grad3d3, integral3d1_curv_alt
 use potentialBCs_mumps, only: potentialbcs2D, potentialbcs2D_fileinput
-use potential_mumps, only: potential3D_fieldresolved, &
+use potential_mumps, only: potential3D_fieldresolved_decimate, &
                             potential2D_fieldresolved, &
                             potential2D_polarization, &
                             potential2D_polarization_periodic
