@@ -6,7 +6,7 @@ program test_potential2D
 
 use mpi
 use phys_consts, only: wp,debug,pi
-use PDEelliptic, only: elliptic2D_polarization,elliptic_workers
+use PDEelliptic, only: elliptic2D_polarization,elliptic2D_cart,elliptic_workers
 implicit none
 
 integer, parameter :: lx1=256,lx2=256,lx3=256
@@ -27,17 +27,26 @@ real(wp), dimension(1:lx3) :: dx3i
 
 real(wp), dimension(lx3) :: Vminx2,Vmaxx2
 real(wp), dimension(lx2) :: Vminx3,Vmaxx3
+real(wp), dimension(1,lx3) :: Vminx22,Vmaxx22
+real(wp), dimension(lx2,1) :: Vminx32,Vmaxx32
 real(wp) :: tstart,tfin
 integer :: u,ierr,myid,lid
 
-real(wp), dimension(lx2,lx3) :: Phi,Phitrue,errorMUMPS
+real(wp), dimension(lx2,lx3) :: Phi,Phi2squeeze,Phitrue,errorMUMPS,errorMUMPS2
+real(wp), dimension(lx2,1,lx3) :: Phi2
 
 real(wp), dimension(lx2,lx3) :: Phi0=1.0_wp,v2=1.0_wp,v3=1.0_wp     !shouldn't be used if D=0
 real(wp), dimension(lx2,lx3) :: A=1.0_wp,Ap=1.0_wp,App=0.0_wp,B=0.0_wp,C=0.0_wp,D=0.0_wp
+real(wp), dimension(lx2,1,lx3) :: A2=1.0_wp,Ap2=1.0_wp
+
 real(wp), dimension(lx2,lx3) :: srcterm=0.0_wp
+real(wp), dimension(lx2,1,lx3) :: srcterm2=0.0_wp
 logical :: perflag=.false.     !shouldn't be used
 integer :: it=1                !not used
 real(wp) :: dt=1.0_wp          !not used
+integer :: gridflag=1
+integer :: flagdirich=0        !denoting non-inverted grid...
+
 
 character(*), parameter :: outfile='test_potential2D.dat'
 
@@ -80,8 +89,12 @@ dx3i=x3i(2:lx3+1)-x3i(1:lx3)
 Vminx2(1:lx3)=0.0_wp
 Vmaxx2(1:lx3)=0.0_wp
 Vminx3(1:lx2)=0.0_wp
-!Vmaxx3(1:lx2)=0.0_wp
 Vmaxx3(1:lx2)=sin(2*pi*x2(1:lx2))
+
+Vminx22(1,1:lx3)=0.0_wp
+Vmaxx22(1,1:lx3)=0.0_wp
+Vminx32(1:lx2,1)=0.0_wp
+Vmaxx32(1:lx2,1)=sin(2*pi*x2(1:lx2))
 
 
 !! Make the call to PDE elliptic solver library, note the separate calls for root vs. workers
@@ -89,9 +102,12 @@ if (myid==0) then
   print*, 'Starting MUMPS solve...'
   Phi=elliptic2D_polarization(srcterm,A,Ap,App,B,C,D,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,dx1, &
                                  dx1i,dx2,dx2i,dx3,dx3i,Phi0,perflag,it)
+!  Phi2=elliptic2D_cart(srcterm2,A2,Ap2,Vminx22,Vmaxx22,Vminx32,Vmaxx32,dx2,dx2i,dx3,dx3i,flagdirich,perflag,gridflag,it)
+!  Phi2squeeze(:,:)=Phi2(:,1,:)
   print*, 'MUMPS solve is complete...'
 else
   call elliptic_workers()
+!  call elliptic_workers()    !twice for two calls by root for two different numerical routines
 end if
 
 
@@ -101,6 +117,7 @@ if (myid==0) then
     do ix2=1,lx2
       Phitrue(ix2,ix3)=sinh(2*pi*x3(ix3))/sinh(2*pi)*sin(2*pi*x2(ix2))
       errorMUMPS(ix2,ix3)=Phi(ix2,ix3)-Phitrue(ix2,ix3)
+!      errorMUMPS2(ix2,ix3)=Phi2squeeze(ix2,ix3)-Phitrue(ix2,ix3)
     end do
   end do
 end if
@@ -110,6 +127,7 @@ end if
 if (myid==0) then
   print*, 'Numerical solution range:  ',minval(Phi),maxval(Phi)
   print*, 'Analytical solution range:  ',minval(Phitrue),maxval(Phitrue)
+
   print *,'Root process is writing ',outfile
   open(newunit=u,file=outfile,status='replace')
   write(u,*) lx2
@@ -117,17 +135,16 @@ if (myid==0) then
   write(u,*) lx3
   call writearray(u,x3)
   call write2Darray(u,Phi)
+!  call write2Darray(u,Phi2squeeze)
   call write2Darray(u,Phitrue)
+  close(u)
+
+  print*, 'Max error over grid:  ',maxval(abs(errorMUMPS))
+  if (maxval(abs(errorMUMPS))>0.05_wp) error stop 'Numerical error too large!!!'
 end if
 
 call mpi_finalize(ierr)
 
-
-!! Fail the test if the error is too large
-if (myid==0) then
-  print*, 'Max error over grid:  ',maxval(abs(errorMUMPS))
-  if (maxval(abs(errorMUMPS))>0.05_wp) error stop 'Numerical error too large!!!'
-end if
 
 contains
 
