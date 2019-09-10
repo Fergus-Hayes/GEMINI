@@ -1,205 +1,106 @@
 program test_potential2D
 
-!------------------------------------------------------------
-!-------SOLVE LAPLACE'S EQUATION IN 2D USING MUMPS
-!------------------------------------------------------------
+!-------------------------------------------------------------------------------
+!-------SOLVE LAPLACE'S EQUATION IN 2D USING PDEelliptic, mumps-based libraries
+!-------------------------------------------------------------------------------
 
+use mpi
+use phys_consts, only: wp
+use PDEelliptic, only: elliptic2D_polarization,elliptic_workers
 implicit none
-include 'mpif.h'
-include 'dmumps_struc.h'
 
-type (DMUMPS_STRUC) mumps_par
-integer :: ierr
+integer, parameter :: lx1=256,lx2=256,lx3=256
+integer :: ix1,ix2,ix3
 
-integer, parameter :: npts1=512,npts2=512,outunit=42
-integer, parameter :: lk=npts1*npts2, lent=5*(npts1-2)*(npts2-2)+2*npts1+2*(npts2-2)
-integer :: ix1,ix2,lx1,lx2
-integer :: iPhi,ient
-integer, dimension(:), allocatable :: ir,ic
-real(8), dimension(:), allocatable :: M
-real(8), dimension(:), allocatable :: b
-real(8) :: dx1
-real(8), dimension(npts1) :: Vleft,Vright
-real(8), dimension(npts2) :: Vbottom,Vtop
-real(8), dimension(:,:), allocatable ::  Mfull
-real(8) :: tstart,tfin
+real(wp), dimension(-1:lx1+2) :: x1
+real(wp), dimension(-1:lx2+2) :: x2
+real(wp), dimension(-1:lx3+2) :: x3
+real(wp), dimension(1:lx1+1) :: x1i
+real(wp), dimension(1:lx2+2) :: x2i
+real(wp), dimension(1:lx3+2) :: x3i
+real(wp), dimension(0:lx1+2) :: dx1
+real(wp), dimension(0:lx2+2) :: dx2
+real(wp), dimension(0:lx3+2) :: dx3
+real(wp), dimension(1:lx1) :: dx1i
+real(wp), dimension(1:lx2) :: dx2i
+real(wp), dimension(1:lx3) :: dx3i
 
+real(wp), dimension(lx3) :: Vminx2,Vmaxx2
+real(wp), dimension(lx2) :: Vminx3,Vmaxx3
+real(wp) :: tstart,tfin
+integer :: u,ierr,myid,lid
 
-!------------------------------------------------------------
-!-------DEFINE A MATRIX USING SPARSE STORAGE (CENTRALIZED
-!-------ASSEMBLED MATRIX INPUT, SEE SECTION 4.5 OF MUMPS USER
-!-------GUIDE).
-!------------------------------------------------------------
-allocate(ir(lent),ic(lent),M(lent),b(lk))
-lx1=npts1
-lx2=npts2
+real(wp), dimension(lx2,lx3) :: Phi
 
-dx1=1.0/npts1           !scale dx so the domain of problem is [0,1]
+real(wp), dimension(lx2,lx3) :: Phi0=0.0_wp,v2=0.0_wp,v3=0.0_wp
+real(wp), dimension(lx2,lx3) :: A=1.0_wp,Ap=1.0_wp,App=0.0_wp,B=0.0_wp,C=0.0_wp,D=0.0_wp
+real(wp), dimension(lx2,lx3) :: srcterm=0.0_wp
+logical :: perflag=.false.     !shouldn't be used
+integer :: it=1                !not used
+real(wp) :: dt=1.0_wp          !not used
 
-Vleft(:)=0
-Vright(:)=0
-Vbottom(:)=1.0
-Vtop(:)=0
-
-M(:)=0.0
-b(:)=0.0
-ient=1
+character(*), parameter :: outfile='test_potential2D.dat'
 
 
-!LOAD UP MATRIX ELEMENTS
-do ix2=1,lx2
-  do ix1=1,lx1
-    iPhi=lx1*(ix2-1)+ix1     !linear index referencing Phi(ix1,ix2) as a column vector.  Also row of big matrix
-
-    if (ix1==1) then          !BOTTOM GRID POINTS + CORNER
-      ir(ient)=iPhi
-      ic(ient)=iPhi
-      M(ient)=1.0
-      b(iPhi)=Vbottom(ix2)
-      ient=ient+1
-    elseif (ix1==lx1) then    !TOP GRID POINTS + CORNER
-      ir(ient)=iPhi
-      ic(ient)=iPhi
-      M(ient)=1.0
-      b(iPhi)=Vtop(ix2)
-      ient=ient+1
-    elseif (ix2==1) then      !LEFT BOUNDARY
-      ir(ient)=iPhi
-      ic(ient)=iPhi  
-      M(ient)=1.0
-      b(iPhi)=Vleft(ix1)
-      ient=ient+1
-    elseif (ix2==lx2) then    !RIGHT BOUNDARY
-      ir(ient)=iPhi
-      ic(ient)=iPhi
-      M(ient)=1.0
-      b(iPhi)=Vright(ix1)
-      ient=ient+1
-    else                      !INTERIOR
-      !ix1,ix2-1 grid point in ix1,ix2 equation
-      ir(ient)=iPhi
-      ic(ient)=iPhi-lx1
-      M(ient)=1.0
-      ient=ient+1
-
-      !ix1-1,ix2 grid point
-      ir(ient)=iPhi
-      ic(ient)=iPhi-1
-      M(ient)=1.0
-      ient=ient+1
-
-      !ix1,ix2 grid point
-      ir(ient)=iPhi
-      ic(ient)=iPhi
-      M(ient)=-4.0
-      ient=ient+1
-
-      !ix1+1,ix2 grid point
-      ir(ient)=iPhi
-      ic(ient)=iPhi+1
-      M(ient)=1.0
-      ient=ient+1
-
-      !ix1,ix2+1 grid point
-      ir(ient)=iPhi
-      ic(ient)=iPhi+lx1
-      M(ient)=1.0
-      ient=ient+1
-    end if
-  end do
-end do
+!! mpi starting
+call mpi_init(ierr)
+call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
+call mpi_comm_size(MPI_COMM_WORLD,lid,ierr)
 
 
-!CORRECT FOR DX /= 1
-b=b*dx1**2
+!! Set up grid and compute differences needed for solution of PDE
+x1=[ (real(ix1-1,wp)/real(lx1-1,wp), ix1=-1,lx1+2) ]
+dx1=x1(0:lx1+2)-x1(-1:lx1+1)
+x1i(1:lx1+1)=0.5*(x1(0:lx1)+x1(1:lx1+1))
+dx1i=x1i(2:lx1+1)-x1i(1:lx1)
+
+x2=[ (real(ix2-1,wp)/real(lx2-1,wp), ix2=-1,lx2+2) ]
+dx2=x2(0:lx2+2)-x2(-1:lx2+1)
+x2i(1:lx2+1)=0.5*(x2(0:lx2)+x2(1:lx2+1))
+dx2i=x2i(2:lx2+1)-x2i(1:lx2)
+
+x3=[ (real(ix3-1,wp)/real(lx3-1,wp), ix3=-1,lx3+2) ]
+dx3=x3(0:lx3+2)-x3(-1:lx3+1)
+x3i(1:lx3+1)=0.5*(x3(0:lx3)+x3(1:lx3+1))
+dx3i=x3i(2:lx3+1)-x3i(1:lx3)
 
 
-!OUTPUT FULL MATRIX FOR DEBUGGING IF ITS NOT TOO BIG (ZZZ --> CAN BE COMMENTED OUT)
-open(outunit,file='test_potential2D.dat',status='replace')
-write(outunit,*) lx1,lx2
-write(outunit,*) dx1
-if (lk<100) then
-  allocate(Mfull(lk,lk))
-  Mfull(:,:)=0.0
-  do ient=1,size(ir)
-    Mfull(ir(ient),ic(ient))=M(ient)
-  end do
-  call write2Darray(outunit,Mfull)
-  call writearray(outunit,b)
-  deallocate(Mfull)
+!! Define boundary conditions for this problem
+Vminx2(1:lx3)=0.0_wp
+Vmaxx2(1:lx3)=0.0_wp
+Vminx2(1:lx2)=1.0_wp
+Vmaxx2(1:lx2)=0.0_wp
+
+
+!! Make the call to PDE elliptic solver library, note the separate calls for root vs. workers
+if (myid==0) then
+  print*, 'Starting MUMPS solve...'
+  Phi=elliptic2D_polarization(srcterm,A,Ap,App,B,C,D,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,dx1, &
+                                 dx1i,dx2,dx2i,dx3,dx3i,Phi0,perflag,it)
+  print*, 'MUMPS solve is complete...'
+else
+  call elliptic_workers()
 end if
 
 
-!------------------------------------------------------------
-!-------DO SOME STUFF TO CALL MUMPS
-!------------------------------------------------------------
-call MPI_INIT(IERR)
-
-
-! Define a communicator for the package.
-mumps_par%COMM = MPI_COMM_WORLD
-
-
-!Initialize an instance of the package
-!for L U factorization (sym = 0, with working host)
-mumps_par%JOB = -1
-mumps_par%SYM = 0
-mumps_par%PAR = 1
-call DMUMPS(mumps_par)
-
-
-!Define problem on the host (processor 0)
-if ( mumps_par%MYID .eq. 0 ) then
-  mumps_par%N=lk
-  mumps_par%NZ=lent
-  allocate( mumps_par%IRN ( mumps_par%NZ ) )
-  allocate( mumps_par%JCN ( mumps_par%NZ ) )
-  allocate( mumps_par%A( mumps_par%NZ ) )
-  allocate( mumps_par%RHS ( mumps_par%N  ) )
-  mumps_par%IRN=ir
-  mumps_par%JCN=ic
-  mumps_par%A=M
-  mumps_par%RHS=b
+!! Write some output for visualizations
+if (myid==0) then
+  print *,'Root process is writing ',outfile
+  open(newunit=u,file=outfile,status='replace')
+  write(u,*) lx2
+  call writearray(u,x2)
+  write(u,*) lx3
+  call writearray(u,x3)
+  call write2Darray(u,Phi)
 end if
 
-
-!Call package for solution
-mumps_par%JOB = 6
-call cpu_time(tstart)
-call DMUMPS(mumps_par)
-call cpu_time(tfin)
-write(*,*) 'Solve took ',tfin-tstart,' seconds...'
-
-
-!Solution has been assembled on the host
-if ( mumps_par%MYID .eq. 0 ) then
-  call writearray(outunit,mumps_par%RHS/dx1**2)    !rescale by dx**2 to physical values
-end if
-close(outunit)
-
-
-!Deallocate user data
-if ( mumps_par%MYID .eq. 0 ) then
-  deallocate( mumps_par%IRN )
-  deallocate( mumps_par%JCN )
-  deallocate( mumps_par%A   )
-  deallocate( mumps_par%RHS )
-end if
-deallocate(ir,ic,M,b)
-
-
-!Destroy the instance (deallocate internal data structures)
-mumps_par%JOB = -2
-call DMUMPS(mumps_par)
-call MPI_FINALIZE(IERR)
-
-
+call mpi_finalize(ierr)
 
 contains
 
   subroutine writearray(fileunit,array)
     integer, intent(in) :: fileunit
-    real(8), dimension(:), intent(in) :: array
+    real(wp), dimension(:), intent(in) :: array
     
     integer :: k
 
@@ -211,7 +112,7 @@ contains
 
   subroutine write2Darray(fileunit,array)
     integer, intent(in) :: fileunit
-    real(8), dimension(:,:), intent(in) :: array
+    real(wp), dimension(:,:), intent(in) :: array
     
     integer :: k1,k2
 

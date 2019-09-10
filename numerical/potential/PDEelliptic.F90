@@ -5,7 +5,7 @@ module PDEelliptic
 use, intrinsic:: iso_fortran_env, only: stderr=>error_unit, stdout=>output_unit
 
 use mpi, only: mpi_comm_world
-use mpimod, only: myid
+!use mpimod, only: myid    !ditch this to get rid of another module dependency...
 use phys_consts, only: wp, debug
 
 implicit none
@@ -74,7 +74,7 @@ real(wp), dimension(size(srcterm,1),size(srcterm,2),size(srcterm,3)) :: elliptic
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
-if (myid==0) then
+!if (myid==0) then
   lx1=size(Ac,1)
   lx2=size(Ac,2)
   lx3=size(Ac,3)
@@ -206,7 +206,7 @@ if (myid==0) then
       end do
     end do
   end do
-end if
+!end if
 if (debug) print *, 'Number of entries used:  ',ient-1
 
 
@@ -229,7 +229,7 @@ call quiet_mumps(mumps_par)
 
 !LOAD OUR PROBLEM
 if (debug) print*, 'Loading mumps problem...'
-if ( myid==0 ) then
+!if ( myid==0 ) then
   mumps_par%N=lPhi
   mumps_par%NZ=lent
   allocate( mumps_par%IRN ( mumps_par%NZ ) )
@@ -253,7 +253,7 @@ if ( myid==0 ) then
   if (debug) print*, 'Setting memory relaxation...'
   !3D solves very often need better memory relaxation
   mumps_par%ICNTL(14)=500
-end if
+!end if
 
 
 !SOLVE (ALL WORKERS NEED TO SEE THIS CALL)
@@ -279,7 +279,7 @@ endif
 !STORE PERMUTATION USED, SAVE RESULTS, CLEAN UP MUMPS ARRAYS
 !(can save ~25% execution time and improves scaling with openmpi
 ! ~25% more going from 1-2 processors)
-if ( myid==0 ) then
+!if ( myid==0 ) then
   if (debug) print *, 'Now organizing results...'
 
   if (perflag .and. it==1) then
@@ -295,7 +295,7 @@ if ( myid==0 ) then
   deallocate( mumps_par%JCN )
   deallocate( mumps_par%A   )
   deallocate( mumps_par%RHS )
-end if
+!end if
 
 mumps_par%JOB = -2
 #if REALBITS==32
@@ -325,12 +325,12 @@ function elliptic2D_polarization(srcterm,SigP2,SigP3,SigH,gradSigH2,gradSigH3,Cm
 !-------BE USED HERE!!!
 !-------The equation solved by this subroutine is:
 !-------
-!-------  d/dx2(A dV/dx2) + d/dx3(A dV/dx3) + B dV/dx2 - C dV/x3 + ...
+!-------  d/dx2(A dV/dx2) + d/dx3(A' dV/dx3) + B dV/dx2 - C dV/x3 + ...
 !-------  d/dx2(D d/dt(dV/dx2)) + d/dx3(D d/dt(dV/dx3)) + ...
 !-------  d/dx2( D*v2 d^V/dx2^2 + D*v3*d^2V/dx3/dx2 ) + ...
 !-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
 !-------  
-!-------  for GEMINI:  A=SigP, B=d/dx3(SigH), C=d/dx2(SigH), 
+!-------  for GEMINI:  A=SigP2, A'=SigP3, B=d/dx3(SigH), C=d/dx2(SigH), 
 !-------               D=Cm
 !------------------------------------------------------------
 
@@ -376,7 +376,7 @@ real(wp), dimension(size(SigP2,1),size(SigP2,2)) :: elliptic2D_polarization
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
-if (myid==0) then
+!if (myid==0) then
   lx2=size(SigP2,1)    !note that these are full-grid sizes since grid module globals are not in scope
   lx3=size(SigP2,2)
   lPhi=lx2*lx3
@@ -732,13 +732,13 @@ if (myid==0) then
       end if
     end do
   end do
-end if
+!end if
 
 
 !FIRE UP MUMPS
-if (myid == 0) then
+!if (myid == 0) then
   if (debug) print *, 'Filled ',ient-1,' matrix entries.  Initializing MUMPS...'
-end if
+!end if
 mumps_par%COMM = MPI_COMM_WORLD
 mumps_par%JOB = -1
 mumps_par%SYM = 0
@@ -755,7 +755,7 @@ call quiet_mumps(mumps_par)
 
 
 !LOAD OUR PROBLEM
-if ( myid==0 ) then
+!if ( myid==0 ) then
   mumps_par%N=lPhi
   mumps_par%NZ=lent
   allocate( mumps_par%IRN ( mumps_par%NZ ) )
@@ -777,7 +777,7 @@ if ( myid==0 ) then
   !may solve some memory allocation issues, uncomment if MUMPS throws errors
   !about not having enough memory
   !mumps_par%ICNTL(14)=50
-end if
+!end if
 
 
 !SOLVE (ALL WORKERS NEED TO SEE THIS CALL)
@@ -803,7 +803,7 @@ endif
 !STORE PERMUTATION USED, SAVE RESULTS, CLEAN UP MUMPS ARRAYS
 !(can save ~25% execution time and improves scaling with openmpi
 ! ~25% more going from 1-2 processors)
-if ( myid==0 ) then
+!if ( myid==0 ) then
   if (debug) print *, 'Now organizing results...'
 
   if (perflag .and. it==1) then
@@ -819,7 +819,7 @@ if ( myid==0 ) then
   deallocate( mumps_par%JCN )
   deallocate( mumps_par%A   )
   deallocate( mumps_par%RHS )
-end if
+!end if
 
 mumps_par%JOB = -2
 #if REALBITS==32
@@ -901,7 +901,7 @@ real(wp), dimension(size(SigP,1),size(SigP,2)) :: elliptic2D_polarization_period
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
-if (myid==0) then
+!if (myid==0) then
   lx2=size(SigP,1)    !these are full-grid sizes since grid module globals are not in scope
   lx3=size(SigP,2)
   lPhi=lx2*lx3
@@ -1288,18 +1288,18 @@ if (myid==0) then
       end if
     end do
   end do
-end if
+!end if
 
 
 !FIRE UP MUMPS
-if (myid == 0) then
+!if (myid == 0) then
   if (debug) print *,  'Debug count:  ',lcount
   if (debug) print *, 'Filled ',ient-1,' out of ',lent,' matrix entries for solving ',iPhi,' of ',lPhi, &
                ' unknowns.  Initializing MUMPS...'
   if (ient-1 /= lent) then
     error stop 'Incorrect number of matrix entries filled in potential solve!!!'
   end if
-end if
+!end if
 mumps_par%COMM = MPI_COMM_WORLD
 mumps_par%JOB = -1
 mumps_par%SYM = 0
@@ -1316,7 +1316,7 @@ call quiet_mumps(mumps_par)
 
 
 !LOAD OUR PROBLEM
-if ( myid==0 ) then
+!if ( myid==0 ) then
   mumps_par%N=lPhi
   mumps_par%NZ=lent
   allocate( mumps_par%IRN ( mumps_par%NZ ) )
@@ -1336,7 +1336,7 @@ if ( myid==0 ) then
   end if
 
   !mumps_par%ICNTL(14)=50
-end if
+!end if
 
 
 !SOLVE (ALL WORKERS NEED TO SEE THIS CALL)
@@ -1361,7 +1361,7 @@ endif
 !STORE PERMUTATION USED, SAVE RESULTS, CLEAN UP MUMPS ARRAYS
 !(can save ~25% execution time and improves scaling with openmpi
 ! ~25% more going from 1-2 processors)
-if ( myid==0 ) then
+!if ( myid==0 ) then
   if (debug) print *, 'Now organizing results...'
 
   if (perflag .and. it==1) then
@@ -1380,7 +1380,7 @@ if ( myid==0 ) then
   deallocate( mumps_par%JCN )
   deallocate( mumps_par%A   )
   deallocate( mumps_par%RHS )
-end if
+!end if
 
 mumps_par%JOB = -2
 #if REALBITS==32
@@ -1444,7 +1444,7 @@ real(wp), dimension(size(sig0,1),1,size(sig0,3)) :: elliptic2D_cart
 
 
 !ONLY ROOT NEEDS TO ASSEMBLE THE MATRIX
-if (myid==0) then
+!if (myid==0) then
   lx1=size(sig0,1)
   lx3=size(sig0,3)
   lPhi=lx1*lx3
@@ -1590,7 +1590,7 @@ if (myid==0) then
       end if
     end do
   end do
-end if
+!end if
 if (debug) print *, 'Number of entries used:  ',ient-1
 
 
@@ -1611,7 +1611,7 @@ call quiet_mumps(mumps_par)
 
 
 !LOAD OUR PROBLEM
-if ( myid==0 ) then
+!if ( myid==0 ) then
   mumps_par%N=lPhi
   mumps_par%NZ=lent
   allocate( mumps_par%IRN ( mumps_par%NZ ) )
@@ -1634,7 +1634,7 @@ if ( myid==0 ) then
   !may solve some memory allocation issues, uncomment if MUMPS throws errors
   !about not having enough memory
   !mumps_par%ICNTL(14)=50
-end if
+!end if
 
 
 !> SOLVE (ALL WORKERS NEED TO SEE THIS CALL)
@@ -1659,7 +1659,7 @@ endif
 !(can save ~25% execution time and improves scaling with openmpi
 ! ~25% more going from 1-2 processors).  WOW - this halves execution
 ! time on some big 2048*2048 solves!!!
-if ( myid==0 ) then
+!if ( myid==0 ) then
   if (debug) print *, 'Now organizing results...'
 
   if (perflag .and. it==1) then
@@ -1676,7 +1676,7 @@ if ( myid==0 ) then
   deallocate( mumps_par%JCN )
   deallocate( mumps_par%A   )
   deallocate( mumps_par%RHS )
-end if
+!end if
 
 mumps_par%JOB = -2
 #if REALBITS==32
