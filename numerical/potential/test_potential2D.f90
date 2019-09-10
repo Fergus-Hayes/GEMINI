@@ -5,7 +5,7 @@ program test_potential2D
 !-------------------------------------------------------------------------------
 
 use mpi
-use phys_consts, only: wp
+use phys_consts, only: wp,debug
 use PDEelliptic, only: elliptic2D_polarization,elliptic_workers
 implicit none
 
@@ -32,7 +32,7 @@ integer :: u,ierr,myid,lid
 
 real(wp), dimension(lx2,lx3) :: Phi
 
-real(wp), dimension(lx2,lx3) :: Phi0=0.0_wp,v2=0.0_wp,v3=0.0_wp
+real(wp), dimension(lx2,lx3) :: Phi0=1.0_wp,v2=1.0_wp,v3=1.0_wp     !shouldn't be used if D=0
 real(wp), dimension(lx2,lx3) :: A=1.0_wp,Ap=1.0_wp,App=0.0_wp,B=0.0_wp,C=0.0_wp,D=0.0_wp
 real(wp), dimension(lx2,lx3) :: srcterm=0.0_wp
 logical :: perflag=.false.     !shouldn't be used
@@ -46,6 +46,10 @@ character(*), parameter :: outfile='test_potential2D.dat'
 call mpi_init(ierr)
 call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
 call mpi_comm_size(MPI_COMM_WORLD,lid,ierr)
+
+
+!! Set things up to give debug output
+debug=.true.
 
 
 !! Set up grid and compute differences needed for solution of PDE
@@ -64,12 +68,19 @@ dx3=x3(0:lx3+2)-x3(-1:lx3+1)
 x3i(1:lx3+1)=0.5*(x3(0:lx3)+x3(1:lx3+1))
 dx3i=x3i(2:lx3+1)-x3i(1:lx3)
 
+if (myid==0) then
+  print*, 'Grid extents:  ',minval(x1),maxval(x1),minval(x2),maxval(x2),minval(x3),maxval(x3)
+  print*, 'Back diff range:  ',minval(dx2),maxval(dx2),minval(dx3),maxval(dx3)
+  print*, 'Center diff range:  ',minval(dx2i),maxval(dx2i),minval(dx3i),maxval(dx3i)
+end if
+
+
 
 !! Define boundary conditions for this problem
 Vminx2(1:lx3)=0.0_wp
 Vmaxx2(1:lx3)=0.0_wp
-Vminx2(1:lx2)=1.0_wp
-Vmaxx2(1:lx2)=0.0_wp
+Vminx3(1:lx2)=1.0_wp
+Vmaxx3(1:lx2)=0.0_wp
 
 
 !! Make the call to PDE elliptic solver library, note the separate calls for root vs. workers
@@ -85,6 +96,8 @@ end if
 
 !! Write some output for visualizations
 if (myid==0) then
+  print*, 'Range of potential solution', minval(Phi),maxval(Phi)
+
   print *,'Root process is writing ',outfile
   open(newunit=u,file=outfile,status='replace')
   write(u,*) lx2
