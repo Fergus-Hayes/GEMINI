@@ -3,6 +3,7 @@
 This file is intended to document development priorities for the GEMINI project.  
 
 ## Physics to add
+
 * heat flux boundary conditions for the electrons (for SAID/STEVE)
 
 
@@ -14,6 +15,11 @@ This file is intended to document development priorities for the GEMINI project.
 * rewrite custom broadcast and gather ops to deal with division in x2 and x3 - this also requires adding routines to pass x2i quantities
 -->
 <!--* alias halo functions -->
+
+## Tests
+* potential test with periodic solver
+* advection solver unit tests
+
 
 ## Messy stuff
 
@@ -30,7 +36,6 @@ This file is intended to document development priorities for the GEMINI project.
 * Proper restarting will require reading in an initial potential value, as well - means that the matlab input scripts need to be fixed/updated too...
 * run + plot script...
 * X Right now MATLAB scripts assume you specify the geographic center of the grid *in the nortern hemisphere*
-* Unit tests for some numerical solvers (elliptic, advection, diffusion, etc.)
 
 
 ## Future Code refactoring
@@ -47,6 +52,7 @@ This file is intended to document development priorities for the GEMINI project.
 * elliptic solvers do not need to check for root vs. workers anymore; is done from calling functions.  Related to this there is now a ton of duplication in the potential_comm routines...
 * X Clean up neutral interpolation code...
 * indexing in elliptic2D_periodic is extremely messy
+* Code duplication for root/workers in potential_comm
 
 
 ## Coding style and standards issues
@@ -66,7 +72,8 @@ This file is intended to document development priorities for the GEMINI project.
 * Merge in P. Inchin's EIA changes (with appropriate flags)
 * Add an example or options to run with a global grid, in case that is useful for anyone.  This basically requires a special grid generation script and then the simulation needs to be flagged as periodic in x3 (magnetic longitude).  
 * Ability to run a dipole grid that encapsulates the magnetic poles
-
+* Interpolation of 3D MAGIC data to 3D GEMINI grid
+ 
 
 ## Plans for adding physics:
 These are projects in progress involved GEMINI, you are encouraged to email M. Zettergren for more info if you have interest in using or collaborating on these so that we can efficiently combine efforts and avoid duplicative work.
