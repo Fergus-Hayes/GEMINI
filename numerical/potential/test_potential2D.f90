@@ -33,7 +33,7 @@ real(wp) :: tstart,tfin
 integer :: u,ierr,myid,lid
 
 real(wp), dimension(lx2,lx3) :: Phi,Phi2squeeze,Phitrue,errorMUMPS,errorMUMPS2
-real(wp), dimension(lx2,1,lx3) :: Phi2
+real(wp), dimension(lx2,1,lx3) :: Phi2    !FA solver requires different shaped arrays...
 
 real(wp), dimension(lx2,lx3) :: Phi0=1.0_wp,v2=1.0_wp,v3=1.0_wp     !shouldn't be used if D=0
 real(wp), dimension(lx2,lx3) :: A=1.0_wp,Ap=1.0_wp,App=0.0_wp,B=0.0_wp,C=0.0_wp,D=0.0_wp
@@ -45,7 +45,7 @@ logical :: perflag=.false.     !shouldn't be used
 integer :: it=1                !not used
 real(wp) :: dt=1.0_wp          !not used
 integer :: gridflag=1
-integer :: flagdirich=0        !denoting non-inverted grid...
+integer :: flagdirich=1        !denoting non-inverted grid...
 
 
 character(*), parameter :: outfile='test_potential2D.dat'
@@ -77,13 +77,6 @@ dx3=x3(0:lx3+2)-x3(-1:lx3+1)
 x3i(1:lx3+1)=0.5*(x3(0:lx3)+x3(1:lx3+1))
 dx3i=x3i(2:lx3+1)-x3i(1:lx3)
 
-!if (myid==0) then
-!  print*, 'Grid extents:  ',minval(x1),maxval(x1),minval(x2),maxval(x2),minval(x3),maxval(x3)
-!  print*, 'Back diff range:  ',minval(dx2),maxval(dx2),minval(dx3),maxval(dx3)
-!  print*, 'Center diff range:  ',minval(dx2i),maxval(dx2i),minval(dx3i),maxval(dx3i)
-!end if
-
-
 
 !! Define boundary conditions for this problem
 Vminx2(1:lx3)=0.0_wp
@@ -102,12 +95,12 @@ if (myid==0) then
   print*, 'Starting MUMPS solve...'
   Phi=elliptic2D_polarization(srcterm,A,Ap,App,B,C,D,v2,v3,Vminx2,Vmaxx2,Vminx3,Vmaxx3,dt,dx1, &
                                  dx1i,dx2,dx2i,dx3,dx3i,Phi0,perflag,it)
-!  Phi2=elliptic2D_cart(srcterm2,A2,Ap2,Vminx22,Vmaxx22,Vminx32,Vmaxx32,dx2,dx2i,dx3,dx3i,flagdirich,perflag,gridflag,it)
-!  Phi2squeeze(:,:)=Phi2(:,1,:)
+  Phi2=elliptic2D_cart(srcterm2,A2,Ap2,Vminx22,Vmaxx22,Vminx32,Vmaxx32,dx2,dx2i,dx3,dx3i,flagdirich,perflag,gridflag,it)
+  Phi2squeeze(:,:)=Phi2(:,1,:)
   print*, 'MUMPS solve is complete...'
 else
   call elliptic_workers()
-!  call elliptic_workers()    !twice for two calls by root for two different numerical routines
+  call elliptic_workers()    !twice for two calls by root for two different numerical routines
 end if
 
 
@@ -115,9 +108,9 @@ end if
 if (myid==0) then
   do ix3=1,lx3
     do ix2=1,lx2
-      Phitrue(ix2,ix3)=sinh(2*pi*x3(ix3))/sinh(2*pi)*sin(2*pi*x2(ix2))
+      Phitrue(ix2,ix3)=sinh(2*pi*x3(ix3))/sinh(2*pi)*sin(2*pi*x2(ix2))    !analytical solution for this prolbem (see documentation)
       errorMUMPS(ix2,ix3)=Phi(ix2,ix3)-Phitrue(ix2,ix3)
-!      errorMUMPS2(ix2,ix3)=Phi2squeeze(ix2,ix3)-Phitrue(ix2,ix3)
+      errorMUMPS2(ix2,ix3)=Phi2squeeze(ix2,ix3)-Phitrue(ix2,ix3)
     end do
   end do
 end if
@@ -135,12 +128,14 @@ if (myid==0) then
   write(u,*) lx3
   call writearray(u,x3)
   call write2Darray(u,Phi)
-!  call write2Darray(u,Phi2squeeze)
+  call write2Darray(u,Phi2squeeze)
   call write2Darray(u,Phitrue)
   close(u)
 
-  print*, 'Max error over grid:  ',maxval(abs(errorMUMPS))
-  if (maxval(abs(errorMUMPS))>0.05_wp) error stop 'Numerical error too large!!!'
+  print*, '1:  Max error over grid:  ',maxval(abs(errorMUMPS))
+  print*, '2:  Max error over grid:  ',maxval(abs(errorMUMPS2))
+  if (maxval(abs(errorMUMPS))>0.05_wp) error stop '1:  Numerical error too large; check setup/output!!!'
+  if (maxval(abs(errorMUMPS2))>0.05_wp) error stop '2:  Numerical error too large; check setup/output!!!'
 end if
 
 call mpi_finalize(ierr)
