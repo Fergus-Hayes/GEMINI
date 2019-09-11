@@ -124,9 +124,9 @@ if (myid==0) then
   print *,'Root process is writing ',outfile
   open(newunit=u,file=outfile,status='replace')
   write(u,*) lx2
-  call writearray(u,x2)
+  call writearray(u,x2(1:lx2))
   write(u,*) lx3
-  call writearray(u,x3)
+  call writearray(u,x3(1:lx3))
   call write2Darray(u,Phi)
   call write2Darray(u,Phi2squeeze)
   call write2Darray(u,Phitrue)
@@ -162,7 +162,7 @@ contains
     integer :: k1,k2
 
     do k1=1,size(array,1)
-      write(fileunit,'(f4.0)') (array(k1,k2), k2=1,size(array,2))
+      write(fileunit,'(f12.6)') (array(k1,k2), k2=1,size(array,2))
     end do
   end subroutine write2Darray
 
