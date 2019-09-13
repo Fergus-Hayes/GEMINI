@@ -73,6 +73,7 @@ This file is intended to document development priorities for the GEMINI project.
 * Add an example or options to run with a global grid, in case that is useful for anyone.  This basically requires a special grid generation script and then the simulation needs to be flagged as periodic in x3 (magnetic longitude).  
 * Ability to run a dipole grid that encapsulates the magnetic poles
 * Interpolation of 3D MAGIC data to 3D GEMINI grid
+* Add ability to output milestone states and to also restart with a milestone...
  
 
 ## Plans for adding physics:
