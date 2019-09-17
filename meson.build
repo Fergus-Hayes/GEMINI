@@ -3,11 +3,13 @@ project('GEMINI', 'fortran',
   default_options : ['default_library=static', 'buildtype=release',
   'libdir=gemini/lib', 'includedir=gemini/include'])
 
-real_bits = '-DREALBITS=' + get_option('realbits')
+bits = get_option('realbits')
+real_bits = '-DREALBITS=' + bits
 use_glow = get_option('useglow')
 use_hdf = get_option('HDF')
 buildtype = get_option('buildtype')
 arith = get_option('arith')
+message('arith: ' + arith)
 
 subdir('cmake')
 
@@ -165,25 +167,31 @@ foreach k, v : zenodo
   message('Enabled test ' + testname)
   test(testname, mpiexec,
     suite : k,
-    args : ['-np', mpi_np, v['exe'], meson.source_root() / 'initialize/test' + k / 'config.ini', test_dir],
+    args : ['-np', mpi_np, v['exe'], meson.source_root() / 'initialize/test' + k / 'config.nml', test_dir],
     workdir : meson.source_root(),
     timeout : 1200,
     is_parallel : false)
 
   if ref_ok
     test('Compare' + k, python_test,
-      args : ['compare_all.py', test_dir, v['dir']],
-      suite : k, timeout: 60, workdir : meson.source_root() / 'tests')
+      args : ['tests/compare_all.py', test_dir, v['dir']],
+      suite : k,
+      timeout: 60,
+      workdir : meson.source_root())
 
     matoctargs = 'compare_all("' + test_dir + '","' + v['dir'] + '")'
 
     test('CompareMatlab' + k, matlab,
       args : ['-batch', matoctargs],
-      suite : k, timeout: 60, workdir : meson.source_root() / 'tests')
+      suite : k,
+      timeout: 60,
+      workdir : meson.source_root() / 'tests')
 
     test('CompareOctave' + k, octave,
       args : ['--eval', matoctargs],
-      suite : k, timeout: 60, workdir : meson.source_root() / 'tests')
+      suite : k,
+      timeout: 60,
+      workdir : meson.source_root() / 'tests')
   else
     warning('Compare' + k + ' skipped due to missing reference data in ' + v['dir'])
   endif

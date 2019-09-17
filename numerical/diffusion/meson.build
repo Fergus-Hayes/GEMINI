@@ -1,8 +1,10 @@
-diffusion = library('diffusion',
-  sources: ['diffusion.F90', '../../vendor/lapack95/gbsv.F90'],
+pde_parabolic = library('pde_parabolic',
+  sources: ['PDEparabolic.f90', '../../vendor/lapack95/gbsv.f90'],
   dependencies: lapack,
-  link_with: [const, grid],
-  fortran_args: real_bits)
+  link_with: [const, grid])
+
+diffusion = library('diffusion', 'diffusion.f90',
+  link_with: [const, grid, pde_parabolic])
 
 test_diffusion1D_exe = executable('test_diffusion1D', 'test_diffusion1D.f90',
   link_with: [const, diffusion])

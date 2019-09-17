@@ -63,7 +63,7 @@ if (gridflag==0) then
   do ix3=1,lx3
     do ix2=1,lx2
       Tn0=Tn(1,ix2,ix3)
-      T(0,ix2,ix3)=Tn0   
+      T(0,ix2,ix3)=Tn0
       Tn0=Tn(lx1,ix2,ix3)
       T(lx1+1,ix2,ix3)=Tn0
     end do
@@ -113,7 +113,7 @@ do ix3=1,lx3
     fx1slice=f(1:lx1,ix2,ix3)
     fx1slice=backEuler1D(fx1slice,A(:,ix2,ix3), &
                   B(:,ix2,ix3),C(:,ix2,ix3),D(:,ix2,ix3),E(:,ix2,ix3), &
-                  f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)    
+                  f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)
     !! inner ghost cells include boundary conditions
     backEuler3D_curv(1:lx1,ix2,ix3)=fx1slice
   end do
@@ -156,7 +156,7 @@ do ix3=1,lx3
     fx1slice=f(1:lx1,ix2,ix3)
     fx1slice=TRBDF21D(fx1slice,A(:,ix2,ix3), &
                   B(:,ix2,ix3),C(:,ix2,ix3),D(:,ix2,ix3),E(:,ix2,ix3), &
-                  f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)             
+                  f(0,ix2,ix3),f(lx1+1,ix2,ix3),dt,x%dx1,x%dx1i)
     !! inner ghost cells include boundary conditions
     TRBDF23D_curv(1:lx1,ix2,ix3)=fx1slice
   end do
@@ -166,5 +166,3 @@ end function TRBDF23D_curv
 
 
 end module diffusion
-
-
