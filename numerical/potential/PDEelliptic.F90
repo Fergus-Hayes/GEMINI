@@ -5,7 +5,7 @@ module PDEelliptic
 use, intrinsic:: iso_fortran_env, only: stderr=>error_unit, stdout=>output_unit
 
 use mpi, only: mpi_comm_world
-!use mpimod, only: myid    !ditch this to get rid of another module dependency...
+
 use phys_consts, only: wp, debug
 
 implicit none
@@ -14,10 +14,8 @@ private
 
 #if REALBITS==32
 include 'smumps_struc.h'
-#elif REALBITS==64
-include 'dmumps_struc.h'
 #else
-error stop "realbits must be 32 or 64"
+include 'dmumps_struc.h'
 #endif
 
 integer, dimension(:), pointer, protected, save :: mumps_perm   !cached permutation, unclear whether save is necessary...
@@ -64,10 +62,8 @@ real(wp) :: tstart,tfin
 
 #if REALBITS==32
 type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC) mumps_par
 #endif
 
 real(wp), dimension(size(srcterm,1),size(srcterm,2),size(srcterm,3)) :: elliptic3D_cart
@@ -219,10 +215,8 @@ mumps_par%PAR = 1
 
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 call quiet_mumps(mumps_par)
@@ -261,10 +255,8 @@ if (debug) print*, 'Executing solve...'
 mumps_par%JOB = 6
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 !> check if Mumps error occurred
@@ -300,10 +292,8 @@ endif
 mumps_par%JOB = -2
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 end function elliptic3D_cart
@@ -329,8 +319,8 @@ function elliptic2D_polarization(srcterm,SigP2,SigP3,SigH,gradSigH2,gradSigH3,Cm
 !-------  d/dx2(D d/dt(dV/dx2)) + d/dx3(D d/dt(dV/dx3)) + ...
 !-------  d/dx2( D*v2 d^V/dx2^2 + D*v3*d^2V/dx3/dx2 ) + ...
 !-------  d/dx3( D*v2 d^2V/dx2/dx3 + D*v3 d^2V/dx3^2 ) = srcterm
-!-------  
-!-------  for GEMINI:  A=SigP2, A'=SigP3, B=d/dx3(SigH), C=d/dx2(SigH), 
+!-------
+!-------  for GEMINI:  A=SigP2, A'=SigP3, B=d/dx3(SigH), C=d/dx2(SigH),
 !-------               D=Cm
 !------------------------------------------------------------
 
@@ -366,10 +356,8 @@ integer :: utrace
 
 #if REALBITS==32
 type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC) mumps_par
 #endif
 
 real(wp), dimension(size(SigP2,1),size(SigP2,2)) :: elliptic2D_polarization
@@ -745,10 +733,8 @@ mumps_par%SYM = 0
 mumps_par%PAR = 1
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 call quiet_mumps(mumps_par)
@@ -784,10 +770,8 @@ call quiet_mumps(mumps_par)
 mumps_par%JOB = 6
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 
@@ -824,10 +808,8 @@ endif
 mumps_par%JOB = -2
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 end function elliptic2D_polarization
@@ -887,10 +869,8 @@ real(wp) :: tstart,tfin
 
 #if REALBITS==32
 type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC) mumps_par
 #endif
 
 integer :: lcount,ix2tmp,ix3tmp
@@ -1306,10 +1286,8 @@ mumps_par%SYM = 0
 mumps_par%PAR = 1
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 call quiet_mumps(mumps_par)
@@ -1343,10 +1321,8 @@ call quiet_mumps(mumps_par)
 mumps_par%JOB = 6
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 !> check if Mumps error occurred
@@ -1385,10 +1361,8 @@ endif
 mumps_par%JOB = -2
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 end function elliptic2D_polarization_periodic
@@ -1434,10 +1408,8 @@ real(wp) :: tstart,tfin
 
 #if REALBITS==32
 type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC) mumps_par
 #endif
 
 real(wp), dimension(size(sig0,1),1,size(sig0,3)) :: elliptic2D_cart
@@ -1601,10 +1573,8 @@ mumps_par%SYM = 0
 mumps_par%PAR = 1
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 call quiet_mumps(mumps_par)
@@ -1641,10 +1611,8 @@ call quiet_mumps(mumps_par)
 mumps_par%JOB = 6
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 !> check if Mumps error occurred
@@ -1681,10 +1649,8 @@ endif
 mumps_par%JOB = -2
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 end function elliptic2D_cart
@@ -1694,10 +1660,8 @@ subroutine quiet_mumps(obj)
 ! this must be called AFTER the first mumps call that had job=-1
 #if REALBITS==32
 type (SMUMPS_STRUC), intent(inout) :: obj
-#elif REALBITS==64
-type (DMUMPS_STRUC), intent(inout) :: obj
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC), intent(inout) :: obj
 #endif
 
 obj%icntl(1) = stderr  ! error messages
@@ -1715,10 +1679,8 @@ subroutine elliptic_workers()
 !------------------------------------------------------------
 #if REALBITS==32
 type (SMUMPS_STRUC) mumps_par
-#elif REALBITS==64
-type (DMUMPS_STRUC) mumps_par
 #else
-error stop "realbits must be 32 or 64"
+type (DMUMPS_STRUC) mumps_par
 #endif
 
 
@@ -1729,10 +1691,8 @@ mumps_par%SYM = 0
 mumps_par%PAR = 1
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 call quiet_mumps(mumps_par)
@@ -1745,10 +1705,8 @@ call quiet_mumps(mumps_par)
 mumps_par%JOB = 6
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
-call DMUMPS(mumps_par)
 #else
-error stop "realbits must be 32 or 64"
+call DMUMPS(mumps_par)
 #endif
 
 !> check if Mumps error occurred
@@ -1764,7 +1722,7 @@ endif
 mumps_par%JOB = -2
 #if REALBITS==32
 call SMUMPS(mumps_par)
-#elif REALBITS==64
+#else
 call DMUMPS(mumps_par)
 #endif
 
@@ -1800,10 +1758,8 @@ end subroutine elliptic_workers
 !
 !#if REALBITS==32
 !type (SMUMPS_STRUC) mumps_par
-!#elif REALBITS==64
-!type (DMUMPS_STRUC) mumps_par
 !#else
-!error stop "realbits must be 32 or 64"
+!type (DMUMPS_STRUC) mumps_par
 !#endif
 !real(wp), dimension(size(rho,1),size(rho,2)) :: poisson2D
 !
@@ -1899,10 +1855,8 @@ end subroutine elliptic_workers
 !mumps_par%PAR = 1
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !call quiet_mumps(mumps_par)
@@ -1934,10 +1888,8 @@ end subroutine elliptic_workers
 !call cpu_time(tstart)
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !!> check if Mumps error occurred
@@ -1969,10 +1921,8 @@ end subroutine elliptic_workers
 !mumps_par%JOB = -2
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !end function poisson2D
@@ -2012,10 +1962,8 @@ end subroutine elliptic_workers
 !
 !#if REALBITS==32
 !type (SMUMPS_STRUC) mumps_par
-!#elif REALBITS==64
-!type (DMUMPS_STRUC) mumps_par
 !#else
-!error stop "realbits must be 32 or 64"
+!type (DMUMPS_STRUC) mumps_par
 !#endif
 !
 !real(wp), dimension(size(srcterm,1),size(srcterm,2),size(srcterm,3)) :: elliptic3D_curv
@@ -2184,10 +2132,8 @@ end subroutine elliptic_workers
 !
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !call quiet_mumps(mumps_par)
@@ -2219,10 +2165,8 @@ end subroutine elliptic_workers
 !mumps_par%JOB = 6
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !!> check if Mumps error occurred
@@ -2258,10 +2202,8 @@ end subroutine elliptic_workers
 !mumps_par%JOB = -2
 !#if REALBITS==32
 !call SMUMPS(mumps_par)
-!#elif REALBITS==64
-!call DMUMPS(mumps_par)
 !#else
-!error stop "realbits must be 32 or 64"
+!call DMUMPS(mumps_par)
 !#endif
 !
 !end function elliptic3D_curv

@@ -1,7 +1,7 @@
 program test_potential3D
-
+use mpi
 implicit none
-include 'mpif.h'
+
 include 'dmumps_struc.h'
 
 type (DMUMPS_STRUC) mumps_par
@@ -71,7 +71,7 @@ do ix3=1,lx3
         ient=ient+1
       elseif (ix2==1) then
         ir(ient)=iPhi
-        ic(ient)=iPhi  
+        ic(ient)=iPhi
         M(ient)=1.0
         b(iPhi)=Vminx2(ix1,ix3)
         ient=ient+1
@@ -83,7 +83,7 @@ do ix3=1,lx3
         ient=ient+1
       elseif (ix3==1) then
         ir(ient)=iPhi
-        ic(ient)=iPhi  
+        ic(ient)=iPhi
         M(ient)=1.0
         b(iPhi)=Vminx3(ix1,ix2)
         ient=ient+1
@@ -234,7 +234,7 @@ contains
   subroutine writearray(fileunit,array)
     integer, intent(in) :: fileunit
     real(8), dimension(:), intent(in) :: array
-    
+
     integer :: k
 
     do k=1,size(array)
@@ -246,7 +246,7 @@ contains
   subroutine write2Darray(fileunit,array)
     integer, intent(in) :: fileunit
     real(8), dimension(:,:), intent(in) :: array
-    
+
     integer :: k1,k2
 
     do k1=1,size(array,1)

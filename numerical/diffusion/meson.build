@@ -7,7 +7,7 @@ diffusion = library('diffusion', 'diffusion.f90',
   link_with: [const, grid, pde_parabolic])
 
 test_diffusion1D_exe = executable('test_diffusion1D', 'test_diffusion1D.f90',
-  link_with: [const, diffusion])
+  link_with: [const, diffusion, pde_parabolic])
 test('diffusion1D', test_diffusion1D_exe,
   timeout: 5,
   suite: 'unit')
