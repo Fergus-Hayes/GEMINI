@@ -1,6 +1,11 @@
-%% LOAD DATA
-clear,clc;
-fid=fopen('test_potential2D.dat');
+function test_potential2D(filename)
+narginchk(1,1)
+
+cwd = fileparts(mfilename('fullpath'));
+addpath([cwd,filesep,'..',filesep,'..', filesep, 'script_utils'])
+addpath([cwd,filesep,'..',filesep,'..', filesep, 'tests'])
+
+fid=fopen(filename);
 data=fscanf(fid,'%f',1);
 lx2=data(1);
 x2=fscanf(fid,'%f',lx2);
@@ -15,6 +20,11 @@ Phitrue=fscanf(fid,'%f',lx2*lx3);
 Phitrue=reshape(Phitrue,[lx2,lx3]);
 fclose(fid);
 
+assert_allclose(Phi2(13, 13), 0.000327, 1e-5,[],'Potential 2d accuracy')
+
+if ~isinteractive
+  return
+end
 
 %% Plot data
 figure(1);
@@ -43,3 +53,4 @@ xlabel('distance (m)')
 ylabel('distance (m)')
 title('2D potential (analytical)')
 
+end

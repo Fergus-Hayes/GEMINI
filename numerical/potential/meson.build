@@ -69,6 +69,12 @@ test_potential2d = executable('test_potential2d', 'test_potential2D.f90',
   dependencies: mpi)
 test('potential2d', test_potential2d, timeout: 30, suite: 'unit')
 
+test('potential2d_octave', octave,
+  args: ['-q', '--eval', 'test_potential2D("' + meson.build_root() / 'test_potential2D.dat")'],
+  timeout: 10,
+  workdir: meson.current_source_dir(),
+  suite: 'unit')
+
 #test_potential3d = executable('test_potential3d', 'test_potential3D.f90',
 #  dependencies: [mpi, mumps])
 #test('potential3d', test_potential3d, timeout: 60, suite: 'unit')
