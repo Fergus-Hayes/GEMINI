@@ -24,7 +24,8 @@ is_nml = infile(len(infile)-3:len(infile)) == '.nml'
 !> READ CONFIG.DAT FILE FOR THIS SIMULATION
 open(newunit=u, file=infile, status='old', action='read')
 if (is_nml) then
-  read(u,nml=base)
+  read(u,nml=base, iostat=i)
+  call check_nml_io(i, infile)
   indatsize = expanduser(indat_size)
   indatgrid = expanduser(indat_grid)
   indatfile = expanduser(indat_file)
@@ -70,11 +71,13 @@ dzn=0
 dxn=0
 if(is_nml) then
   if (flagdneu == 1) then
-    read(u, nml=neutral_perturb)
+    read(u, nml=neutral_perturb, iostat=i)
+    call check_nml_io(i, infile)
     sourcedir = expanduser(source_dir)
   endif
 else
-  read(u,*) flagdneu  ! line 15
+  read(u,*, iostat=i) flagdneu  ! line 15
+  call check_ini_io(i, infile)
   if( flagdneu==1) then
     read(u,*) interptype
     read(u,*) sourcemlat,sourcemlon
@@ -103,15 +106,18 @@ end if
 dtprec=0
 if(is_nml) then
   if (flagprecfile == 1) then
-    read(u, nml=precip)
+    read(u, nml=precip, iostat=i)
+    call check_nml_io(i, infile)
     precdir = expanduser(prec_dir)
   endif
 else
   read(u,*, iostat=i) flagprecfile
+  call check_ini_io(i, infile)
   if (flagprecfile==1) then
   !! get the location of the precipitation input files
-    read(u,*) dtprec
-    read(u,'(A256)') buf
+    read(u,*, iostat=i) dtprec
+    read(u,'(A256)', iostat=i) buf
+    call check_nml_io(i, infile)
     precdir = expanduser(buf)
   end if
 end if
@@ -128,15 +134,18 @@ end if
 dtE0=0
 if(is_nml) then
   if (flagE0file == 1) then
-    read(u, nml=efield)
+    read(u, nml=efield, iostat=i)
+    call check_nml_io(i, infile)
     E0dir = expanduser(E0_dir)
   endif
 else
   read(u,*, iostat=i) flagE0file
+  call check_ini_io(i, infile)
   if (flagE0file==1) then
   !! get the location of the precipitation input files
-    read(u,*) dtE0
-    read(u,'(a256)') buf
+    read(u,*, iostat=i) dtE0
+    read(u,'(a256)', iostat=i) buf
+    call check_nml_io(i, infile)
     E0dir = expanduser(buf)
   end if
 end if
@@ -153,13 +162,17 @@ end if
 dtglow=NaN
 dtglowout=NaN
 if(is_nml) then
-  if (flagglow == 1) read(u, nml=glow)
+  if (flagglow == 1) then
+    read(u, nml=glow, iostat=i)
+    call check_nml_io(i, infile)
+  endif
 else
   read(u,*, iostat=i) flagglow
+  call check_ini_io(i, infile)
   if (flagglow==1) then
     read(u,*, iostat=i) dtglow
     read(u,*, iostat=i) dtglowout
-    if (i /= 0) error stop 'did you include GLOW timing config data in the .ini file?'
+    call check_nml_io(i, infile)
   end if
 end if
 
@@ -172,5 +185,42 @@ end if
 close(u)
 
 end procedure read_configfile
+
+
+subroutine check_nml_io(i, filename)
+!! checks for EOF and gives helpful error
+!! this accomodates non-Fortran 2018 error stop with variable character
+
+integer, intent(in) :: i
+character(*), intent(in) :: filename
+
+if (is_iostat_end(i)) then
+  write(stderr,*) 'ensure there is a trailing blank line in ' // filename
+  error stop
+endif
+
+if (i /= 0) then
+  write(stderr,*) 'problem reading ' // filename
+  error stop
+endif
+
+end subroutine check_nml_io
+
+
+subroutine check_ini_io(i, filename)
+  !! checks for EOF and gives helpful error
+  !! this accomodates non-Fortran 2018 error stop with variable character
+
+  integer, intent(in) :: i
+  character(*), intent(in) :: filename
+
+  if (is_iostat_end(i)) return
+
+  if (i /= 0) then
+    write(stderr,*) 'problem reading ' // filename
+    error stop
+  endif
+
+  end subroutine check_ini_io
 
 end submodule input
