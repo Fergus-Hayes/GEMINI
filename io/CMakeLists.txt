@@ -2,6 +2,31 @@ add_library(fsutils mkdir.F90 expanduser.f90)
 target_compile_options(fsutils PRIVATE ${FFLAGS})
 set_target_properties(fsutils PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
+if(WIN32)
+  set(_code "#include <stdlib.h>
+  int main(void) {
+  const char *relPath; char *absPath;
+  _fullpath(absPath, relPath, _MAX_PATH);
+  return 0; }")
+  check_c_source_compiles("${_code}" windowsio_OK)
+  set(posixio_OK false)
+else()
+  set(_code "int main(void) {
+  const char *path; char *resolved_path;
+  realpath(path, resolved_path);
+  return 0; }")
+  check_c_source_compiles("${_code}" posixio_OK)
+  set(windowsio_OK false)
+endif()
+
+if(posixio_OK)
+  target_sources(fsutils PRIVATE io_posix.f90)
+elseif(windowsio_OK)
+  target_sources(fsutils PRIVATE io_windows.f90)
+else()
+  target_sources(fsutils PRIVATE io_dummy.f90)
+endif()
+
 add_library(logging logging.f90)
 target_compile_options(logging PRIVATE ${FFLAGS})
 set_target_properties(logging PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})

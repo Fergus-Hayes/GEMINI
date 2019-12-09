@@ -18,9 +18,6 @@ Testing/
 *.stackdump
 *.exe
 *.dat
-*.orig
-CMakeFiles/
-CMakeCache.txt
 
 build/
 initialize/

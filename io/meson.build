@@ -25,7 +25,25 @@ else
   io_src += files('plasma_output_raw.f90', 'mag_raw.f90', 'aurora_raw.f90')
 endif
 
+# ---
+fs_src = files('mkdir.F90', 'expanduser.f90')
+
+if os == 'windows'
+  code = '''#include <stdlib.h>
+  int main(void) {const char *relPath; char *absPath;
+  _fullpath(absPath, relPath, _MAX_PATH);
+  return 0; }
+  '''
+  fs_src += cc.links(code, name: 'Windows _fullpath') ? files('io_windows.f90') : files('io_dummy.f90')
+else
+  code = '''int main(void) {const char *path; char *resolved_path;
+  realpath(path, resolved_path);
+  return 0; }
+  '''
+  fs_src += cc.links(code, name: 'POSIX realpath') ? files('io_posix.f90') : files('io_dummy.f90')
+endif
+
 fsutils = library('fsutils',
-  sources: ['mkdir.F90', 'expanduser.f90'])
+  sources: fs_src)
 
 logging = library('logging', 'logging.f90')

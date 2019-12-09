@@ -23,8 +23,6 @@ find_package(OpenMP COMPONENTS C Fortran)
 set(CMAKE_REQUIRED_INCLUDES ${SCALAPACK_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${SCALAPACK_LIBRARIES} ${LAPACK_LIBRARIES})
 
-include(CheckFortranSourceRuns)
-include(CheckFortranSourceCompiles)
 file(READ ${CMAKE_SOURCE_DIR}/tests/test_scalapack.f90 _code)
 
 check_fortran_source_compiles(${_code} SCALAPACK_Compiles_OK SRC_EXT f90)
@@ -81,8 +79,6 @@ if(mumps_external)
 endif()
 
 # -- minimal check that MUMPS is linkable
-include(CheckFortranSourceCompiles)
-
 set(CMAKE_REQUIRED_LIBRARIES ${MUMPS_LIBRARIES} MPI::MPI_Fortran)
 set(CMAKE_REQUIRED_INCLUDES ${MUMPS_INCLUDE_DIRS})
 

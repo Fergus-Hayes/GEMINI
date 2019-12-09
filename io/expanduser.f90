@@ -1,5 +1,17 @@
 module fsutils
+
 implicit none
+
+private
+public :: realpath, expanduser
+
+interface  ! io_*.f90
+module function realpath(path)
+character(:), allocatable :: realpath
+character(*), intent(in) :: path
+end function realpath
+end interface
+
 contains
 
 function expanduser(indir)
