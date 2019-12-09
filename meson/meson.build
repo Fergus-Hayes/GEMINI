@@ -127,34 +127,10 @@ endif
 
 
 # --- Find Scalapack
-scalapack = disabler()
-
-if mklroot != ''
-  scalapack_lib = fc.find_library('mkl_scalapack_lp64', dirs: mkllib_root)
-  scalapack = declare_dependency(dependencies: [scalapack_lib, blacs, lapack, intelmpi_lib], include_directories: mklroot/'include/intel64/lp64')
-endif
-
-if not scalapack.found()
-  scalapack_root = get_option('SCALAPACK_ROOT')
-  if scalapack_root != ''
-    scalapack = fc.find_library('scalapack', dirs : scalapack_root / 'lib', required: false, disabler: true)
-  else
-    if os == 'linux'
-      scalapack = fc.find_library('scalapack-openmpi', required: false, disabler: true)
-      if not scalapack.found()
-        scalapack = fc.find_library('scalapack', required: false, disabler: true)
-      endif
-    elif os == 'darwin'
-      scalapack_root = '/usr/local/opt/scalapack'
-      scalapack = fc.find_library('scalapack', dirs: scalapack_root / 'lib', required: false, disabler: true)
-    endif
-  endif
-  if scalapack.found()
-    if (fc.run(files('../tests/test_scalapack.f90'), dependencies: [scalapack, mpi], name: 'SCALAPACK').returncode() != 0)
-      # .links() is NOT an adequate test
-      scalapack = disabler()
-    endif
-  endif
+scalapack = dependency('scalapack', cmake_module_path: meson.source_root() /'cmake/Modules', required: false)
+if fc.run(files('../tests/test_scalapack.f90'), dependencies: [scalapack, mpi], name: 'SCALAPACK').returncode() != 0
+  # .links() is NOT an adequate test
+  scalapack = disabler()
 endif
 
 if not scalapack.found()
