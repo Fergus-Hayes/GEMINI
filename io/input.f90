@@ -48,6 +48,9 @@ else
   read(u,'(a256)') buf
   indatfile = expanduser(buf)   ! line 14
 endif
+
+call assert_exists([indatsize, indatgrid, indatfile])
+
 !> PRINT SOME DIAGNOSIC INFO FROM ROOT
 if (myid==0) then
   print '(A,I6,A1,I0.2,A1,I0.2)', infile//': simulation ymd is:  ',ymd(1),'/',ymd(2),'/',ymd(3)
@@ -74,6 +77,7 @@ if(is_nml) then
     read(u, nml=neutral_perturb, iostat=i)
     call check_nml_io(i, infile)
     sourcedir = expanduser(source_dir)
+    call assert_exists(sourcedir)
   endif
 else
   read(u,*, iostat=i) flagdneu  ! line 15
@@ -89,6 +93,7 @@ else
     end if
     read(u,'(A256)') buf
     sourcedir = expanduser(buf)
+    call assert_exists(sourcedir)
   endif
 end if
 !> have to allocate, even when not used, to avoid runtime errors with pickier compilers
@@ -109,6 +114,7 @@ if(is_nml) then
     read(u, nml=precip, iostat=i)
     call check_nml_io(i, infile)
     precdir = expanduser(prec_dir)
+    call assert_exists(precdir)
   endif
 else
   read(u,*, iostat=i) flagprecfile
@@ -119,6 +125,7 @@ else
     read(u,'(A256)', iostat=i) buf
     call check_nml_io(i, infile)
     precdir = expanduser(buf)
+    call assert_exists(precdir)
   end if
 end if
 !> have to allocate, even when not used, to avoid runtime errors with pickier compilers
@@ -137,6 +144,7 @@ if(is_nml) then
     read(u, nml=efield, iostat=i)
     call check_nml_io(i, infile)
     E0dir = expanduser(E0_dir)
+    call assert_exists(E0dir)
   endif
 else
   read(u,*, iostat=i) flagE0file
@@ -147,6 +155,7 @@ else
     read(u,'(a256)', iostat=i) buf
     call check_nml_io(i, infile)
     E0dir = expanduser(buf)
+    call assert_exists(E0dir)
   end if
 end if
 !> have to allocate, even when not used, to avoid runtime errors with pickier compilers
@@ -208,19 +217,36 @@ end subroutine check_nml_io
 
 
 subroutine check_ini_io(i, filename)
-  !! checks for EOF and gives helpful error
-  !! this accomodates non-Fortran 2018 error stop with variable character
+!! checks for EOF and gives helpful error
+!! this accomodates non-Fortran 2018 error stop with variable character
 
-  integer, intent(in) :: i
-  character(*), intent(in) :: filename
+integer, intent(in) :: i
+character(*), intent(in) :: filename
 
-  if (is_iostat_end(i)) return
+if (is_iostat_end(i)) return
 
-  if (i /= 0) then
-    write(stderr,*) 'problem reading ' // filename
-    error stop
-  endif
+if (i /= 0) then
+  write(stderr,*) 'problem reading ' // filename
+  error stop
+endif
 
-  end subroutine check_ini_io
+end subroutine check_ini_io
+
+
+impure elemental subroutine assert_exists(path)
+!! throw error if file or directory does not exist
+!! this accomodates non-Fortran 2018 error stop with variable character
+
+character(*), intent(in) :: path
+logical :: exists
+
+inquire(file=path, exist=exists)
+
+if (.not.exists) then
+  write(stderr,*) path // ' does not exist'
+  error stop
+endif
+
+end subroutine assert_exists
 
 end submodule input
