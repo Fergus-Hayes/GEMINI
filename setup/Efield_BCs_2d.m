@@ -140,15 +140,12 @@ end % function
 function writehdf5(dir_out, E, params)
 narginchk(3,3)
 
-fn = [dir_out, '/simsize.h5'];
-if isfile(fn), delete(fn), end
-h5save(fn, '/Nlon', E.llon)
-h5save(fn, '/Nlat', E.llat)
-
 fn = [dir_out, '/simgrid.h5'];
 if isfile(fn), delete(fn), end
-h5save(fn, '/mlon', E.mlon)
-h5save(fn, '/mlat', E.mlat)
+h5save(fn, '/mlonp', E.mlon)
+h5save(fn, '/mlatp', E.mlat)
+
+sA = [E.llon, E.llat];
 
 Nt = size(E.expdate, 1);
 for i = 1:Nt
@@ -159,15 +156,15 @@ for i = 1:Nt
   disp(['write: ', fn])
 
   %FOR EACH FRAME WRITE A BC TYPE AND THEN OUTPUT BACKGROUND AND BCs
-  h5save(fn, '/flagdirich', params.flagdirich)
-  h5save(fn, '/Exit', E.Exit(:,:,i))
-  h5save(fn, '/Eyit', E.Eyit(:,:,i))
-  h5save(fn, '/Vminx1it', E.Vminx1it(:,:,i))
-  h5save(fn, '/Vmaxx1it', E.Vmaxx1it(:,:,i))
-  h5save(fn, '/Vminx2ist', E.Vminx2ist(:,i))
-  h5save(fn, '/Vmaxx2ist', E.Vmaxx2ist(:,i))
-  h5save(fn, '/Vminx3ist', E.Vminx3ist(:,i))
-  h5save(fn, '/Vmaxx3ist', E.Vmaxx3ist(:,i))
+  h5save(fn, '/flagdirich', int32(params.flagdirich))
+  h5save(fn, '/E0xp', E.Exit(:,:,i), sA)
+  h5save(fn, '/E0yp', E.Eyit(:,:,i), sA)
+  h5save(fn, '/Vminx1p', E.Vminx1it(:,:,i), sA)
+  h5save(fn, '/Vmaxx1p', E.Vmaxx1it(:,:,i), sA)
+  h5save(fn, '/Vminx2pslice', E.Vminx2ist(:,i), E.llat)
+  h5save(fn, '/Vmaxx2pslice', E.Vmaxx2ist(:,i), E.llat)
+  h5save(fn, '/Vminx3pslice', E.Vminx3ist(:,i), E.llon)
+  h5save(fn, '/Vmaxx3pslice', E.Vmaxx3ist(:,i), E.llon)
 end
 end % function
 
