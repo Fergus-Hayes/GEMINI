@@ -1,6 +1,17 @@
-find_package(SCALAPACK REQUIRED)
 find_package(LAPACK REQUIRED)
 
+find_package(SCALAPACK)
+
+set(scalapack_external false)
+if(NOT SCALAPACK_FOUND)
+  include(${CMAKE_CURRENT_LIST_DIR}/scalapack_external.cmake)
+  set(scalapack_external true)
+endif()
+
+if(scalapack_external)
+# can't run prebuild test with external libraries not yet built.
+  return()
+endif()
 # -- verify Scalapack links
 
 set(CMAKE_REQUIRED_INCLUDES ${SCALAPACK_INCLUDE_DIRS})
