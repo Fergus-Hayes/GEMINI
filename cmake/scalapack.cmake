@@ -18,7 +18,7 @@ set(CMAKE_REQUIRED_INCLUDES ${SCALAPACK_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${SCALAPACK_LIBRARIES} ${LAPACK_LIBRARIES} MPI::MPI_Fortran)
 # MPI needed for ifort
 
-file(READ ${CMAKE_SOURCE_DIR}/tests/test_scalapack.f90 _code)
+file(READ ${CMAKE_SOURCE_DIR}/tests/test_scalapack_d.f90 _code)
 
 check_fortran_source_compiles(${_code} SCALAPACK_Compiles_OK SRC_EXT f90)
 if(NOT SCALAPACK_Compiles_OK)

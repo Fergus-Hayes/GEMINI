@@ -6,12 +6,14 @@ test('mpi_basic', test_mpi_exe,
   suite: 'unit')
 
 
-test_scalapack_exe = executable('test_scalapack', 'test_scalapack.f90',
+if arith.contains('d')
+test_scalapack_d = executable('test_scalapack_d', 'test_scalapack_d.f90',
   dependencies: [scalapack, blacs, lapack, mpi])
-test('scalapack_basic', test_scalapack_exe,
+test('scalapack_d', test_scalapack_d,
   timeout: 10,
   env: nomalloc_env,
   suite: 'unit')
+endif
 
 test_mumps_exe = executable('test_mumps',
   sources : ['test_mumps.f90', mumpsifc_src],
