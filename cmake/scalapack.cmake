@@ -1,4 +1,8 @@
-find_package(LAPACK REQUIRED)
+find_package(LAPACK)
+if(NOT LAPACK_FOUND)
+  include(${CMAKE_CURRENT_LIST_DIR}/lapack_external.cmake)
+endif()
+# --- Lapack
 
 find_package(SCALAPACK)
 
